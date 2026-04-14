@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+.venv/
+venv/
+env/
+ENV/
+.env
+.env.*
+!.env.example
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+.npm
+.eslintcache
+*.tsbuildinfo
+
+# IDE / OS
+.vscode/
+.idea/
+*.suo
+*.user
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TouchDesigner
+touchdesigner/**/*.toe.bak
+touchdesigner/**/*.tox.bak
+
+# Misc
+*.swp
+*.swo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml

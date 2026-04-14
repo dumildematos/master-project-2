@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sentio — EEG-Driven Generative Fashion</title>
+  <meta name="description" content="Sentio transforms real-time EEG brainwave data into generative visual patterns projected onto fashion garments — bridging neuroscience, emotion and wearable art." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --cyan:    hsl(187, 80%, 55%);
+      --cyan-d:  hsl(187, 80%, 35%);
+      --purple:  hsl(262, 70%, 65%);
+      --magenta: hsl(310, 70%, 62%);
+      --amber:   hsl(38, 92%, 58%);
+      --bg:      hsl(230, 25%, 5%);
+      --bg2:     hsl(230, 20%, 8%);
+      --bg3:     hsl(230, 18%, 11%);
+      --border:  hsl(230, 20%, 18%);
+      --muted:   hsl(230, 15%, 45%);
+      --text:    hsl(220, 20%, 88%);
+      --font:    'Space Grotesk', sans-serif;
+      --mono:    'IBM Plex Mono', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* ── Neural background grid ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 60px 60px;
+      opacity: 0.25;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Radial glow centres ── */
+    .glow-bg {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background:
+        radial-gradient(ellipse 60% 45% at 20% 25%, hsl(187 80% 55% / 0.06) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 80% 70%, hsl(262 70% 65% / 0.06) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 35% at 55% 15%, hsl(310 70% 62% / 0.04) 0%, transparent 70%);
+    }
+
+    /* ──────────────────────────────
+       NAV
+    ────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px;
+      height: 64px;
+      border-bottom: 1px solid var(--border);
+      background: hsl(230 25% 5% / 0.85);
+      backdrop-filter: blur(20px);
+    }
+
+    .nav-brand {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none;
+    }
+    .nav-logo {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--cyan-d);
+      background: hsl(187 80% 55% / 0.08);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .nav-logo svg { width: 18px; height: 18px; }
+    .nav-wordmark {
+      font-size: 15px; font-weight: 700;
+      letter-spacing: 5px;
+      color: var(--cyan);
+      text-shadow: 0 0 20px hsl(187 80% 55% / 0.5);
+    }
+
+    .nav-links {
+      display: flex; align-items: center; gap: 32px;
+      list-style: none;
+    }
+    .nav-links a {
+      text-decoration: none;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: var(--muted);
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 18px;
+      border-radius: 8px;
+      border: 1px solid var(--cyan-d);
+      background: hsl(187 80% 55% / 0.06);
+      color: var(--cyan) !important;
+      text-decoration: none;
+      font-family: var(--mono);
+      font-size: 11px; letter-spacing: 2px;
+      transition: all 0.2s;
+    }
+    .nav-cta:hover {
+      background: hsl(187 80% 55% / 0.14);
+      border-color: var(--cyan);
+      box-shadow: 0 0 16px hsl(187 80% 55% / 0.2);
+    }
+
+    /* ──────────────────────────────
+       HERO
+    ────────────────────────────── */
+    .hero {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 120px 24px 80px;
+    }
+
+    /* Animated EEG wave behind hero */
+    .hero-wave {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(700px, 90vw);
+      opacity: 0.06;
+      pointer-events: none;
+    }
+
+    .hero-chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px;
+      border-radius: 100px;
+      border: 1px solid hsl(187 80% 55% / 0.3);
+      background: hsl(187 80% 55% / 0.06);
+      font-family: var(--mono);
+      font-size: 10px; letter-spacing: 3px;
+      color: var(--cyan);
+      margin-bottom: 32px;
+    }
+    .chip-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--cyan);
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50%       { opacity: 1;   transform: scale(1.25); }
+    }
+
+    .hero h1 {
+      font-size: clamp(42px, 7vw, 82px);
+      font-weight: 700;
+      line-height: 1.08;
+      letter-spacing: -1px;
+      max-width: 820px;
+      margin-bottom: 24px;
+    }
+    .hero h1 .accent-cyan    { color: var(--cyan);    text-shadow: 0 0 30px hsl(187 80% 55% / 0.4); }
+    .hero h1 .accent-purple  { color: var(--purple);  text-shadow: 0 0 30px hsl(262 70% 65% / 0.3); }
+    .hero h1 .accent-magenta { color: var(--magenta); text-shadow: 0 0 30px hsl(310 70% 62% / 0.3); }
+
+    .hero-sub {
+      font-size: clamp(15px, 2vw, 19px);
+      color: var(--muted);
+      max-width: 560px;
+      margin-bottom: 48px;
+      line-height: 1.7;
+    }
+
+    .hero-actions {
+      display: flex; align-items: center; gap: 16px;
+      flex-wrap: wrap; justify-content: center;
+    }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 28px;
+      border-radius: 10px;
+      background: var(--cyan);
+      color: hsl(230, 25%, 6%);
+      font-weight: 700; font-size: 13px; letter-spacing: 1px;
+      text-decoration: none;
+      transition: all 0.2s;
+      box-shadow: 0 0 30px hsl(187 80% 55% / 0.3);
+    }
+    .btn-primary:hover {
+      background: hsl(187, 80%, 65%);
+      box-shadow: 0 0 40px hsl(187 80% 55% / 0.5);
+      transform: translateY(-1px);
+    }
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 28px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 13px; letter-spacing: 1px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-ghost:hover {
+      border-color: hsl(230 20% 35%);
+      color: var(--text);
+    }
+
+    /* Mannequin sketch in hero */
+    .hero-visual {
+      margin-top: 72px;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      gap: 0;
+    }
+    .hero-canvas-mock {
+      width: min(560px, 90vw);
+      height: min(320px, 55vw);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--bg2);
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px var(--border);
+    }
+    /* Fake capsule particles inside the mock */
+    .capsule-layer {
+      position: absolute; inset: 0;
+      overflow: hidden;
+    }
+    .cap {
+      position: absolute;
+      border-radius: 100px;
+      opacity: 0.55;
+      animation: floatCap linear infinite;
+    }
+    @keyframes floatCap {
+      0%   { transform: translateY(0px)   rotate(var(--r)) scale(1); }
+      50%  { transform: translateY(-8px)  rotate(var(--r)) scale(1.03); }
+      100% { transform: translateY(0px)   rotate(var(--r)) scale(1); }
+    }
+
+    /* Dress-form silhouette inside canvas mock */
+    .mock-mannequin {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 130px; height: auto;
+      opacity: 0.15;
+    }
+
+    /* Scan line effect */
+    .hero-canvas-mock::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(0,0,0,0.06) 3px,
+        rgba(0,0,0,0.06) 4px
+      );
+      pointer-events: none;
+    }
+
+    /* Live indicator */
+    .mock-live {
+      position: absolute; top: 14px; right: 14px;
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--mono); font-size: 9px; letter-spacing: 2px;
+      color: hsl(142, 70%, 55%);
+    }
+    .mock-live-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: hsl(142, 70%, 55%);
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    .mock-emotion-tag {
+      position: absolute; bottom: 14px; left: 14px;
+      font-family: var(--mono); font-size: 10px; letter-spacing: 2px;
+      color: var(--cyan);
+      text-shadow: 0 0 12px hsl(187 80% 55% / 0.6);
+    }
+
+    /* ──────────────────────────────
+       STATS BAR
+    ────────────────────────────── */
+    .stats-bar {
+      position: relative; z-index: 1;
+      display: flex; align-items: center; justify-content: center;
+      gap: 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+      flex-wrap: wrap;
+    }
+    .stat-item {
+      flex: 1; min-width: 160px;
+      padding: 28px 32px;
+      text-align: center;
+      border-right: 1px solid var(--border);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-value {
+      font-size: 32px; font-weight: 700;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .stat-label {
+      font-family: var(--mono);
+      font-size: 9px; letter-spacing: 3px;
+      color: var(--muted); text-transform: uppercase;
+    }
+
+    /* ──────────────────────────────
+       SECTIONS
+    ────────────────────────────── */
+    section {
+      position: relative; z-index: 1;
+      padding: 96px 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-tag {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: var(--mono); font-size: 10px; letter-spacing: 3px;
+      color: var(--muted); text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .section-tag::before {
+      content: '';
+      display: block; width: 24px; height: 1px;
+      background: var(--muted);
+    }
+
+    .section-title {
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 700; line-height: 1.15;
+      margin-bottom: 16px;
+    }
+    .section-sub {
+      font-size: 17px; color: var(--muted);
+      max-width: 520px; line-height: 1.7;
+      margin-bottom: 56px;
+    }
+
+    /* ──────────────────────────────
+       HOW IT WORKS
+    ────────────────────────────── */
+    .pipeline {
+      display: flex; align-items: stretch;
+      gap: 0; flex-wrap: wrap;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .pipe-step {
+      flex: 1; min-width: 160px;
+      padding: 32px 28px;
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 12px;
+      position: relative;
+    }
+    .pipe-step:last-child { border-right: none; }
+    .pipe-num {
+      font-family: var(--mono); font-size: 9px; letter-spacing: 2px;
+      color: var(--muted);
+    }
+    .pipe-icon {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .pipe-name {
+      font-weight: 700; font-size: 15px;
+    }
+    .pipe-desc {
+      font-size: 13px; color: var(--muted); line-height: 1.6;
+    }
+    .pipe-tag {
+      margin-top: auto;
+      display: inline-block;
+      padding: 3px 10px; border-radius: 100px;
+      font-family: var(--mono); font-size: 9px; letter-spacing: 1px;
+    }
+
+    /* Arrow between steps */
+    .pipe-step::after {
+      content: '→';
+      position: absolute;
+      right: -12px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px; color: var(--muted);
+      z-index: 2;
+    }
+    .pipe-step:last-child::after { display: none; }
+
+    /* ──────────────────────────────
+       FEATURES GRID
+    ────────────────────────────── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .feat-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+      display: flex; flex-direction: column; gap: 14px;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    .feat-card:hover {
+      border-color: hsl(230 20% 30%);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    .feat-icon {
+      width: 46px; height: 46px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    .feat-title { font-weight: 600; font-size: 16px; }
+    .feat-desc  { font-size: 13px; color: var(--muted); line-height: 1.65; }
+    .feat-stack {
+      margin-top: auto;
+      display: flex; flex-wrap: wrap; gap: 6px;
+    }
+    .tag {
+      padding: 3px 9px; border-radius: 100px;
+      font-family: var(--mono); font-size: 9px; letter-spacing: 1px;
+      background: var(--bg3); border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    /* ──────────────────────────────
+       EMOTION PALETTE
+    ────────────────────────────── */
+    .emotions-row {
+      display: flex; gap: 16px; flex-wrap: wrap;
+    }
+    .emo-card {
+      flex: 1; min-width: 140px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--bg2);
+      padding: 24px 20px;
+      display: flex; flex-direction: column; gap: 10px;
+      align-items: center; text-align: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .emo-card:hover { transform: translateY(-4px); }
+    .emo-orb {
+      width: 52px; height: 52px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    .emo-name  { font-weight: 600; font-size: 13px; letter-spacing: 1px; }
+    .emo-bands { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 1px; }
+
+    /* ──────────────────────────────
+       TECH STACK
+    ────────────────────────────── */
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .stack-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .stack-icon {
+      width: 40px; height: 40px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; flex-shrink: 0;
+    }
+    .stack-name  { font-weight: 600; font-size: 14px; }
+    .stack-role  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* ──────────────────────────────
+       PROJECTION / MANNEQUIN SECTION
+    ────────────────────────────── */
+    .projection-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
+    }
+    @media (max-width: 768px) {
+      .projection-split { grid-template-columns: 1fr; }
+    }
+    .proj-diagram {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 280px;
+    }
+    .proj-diagram svg { max-width: 180px; filter: drop-shadow(0 0 18px hsl(310 70% 62% / 0.25)); }
+    .proj-checklist { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+    .proj-checklist li {
+      display: flex; align-items: flex-start; gap: 12px;
+      font-size: 14px; line-height: 1.65;
+    }
+    .proj-checklist li::before {
+      content: '✓';
+      display: flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px; border-radius: 6px;
+      background: hsl(310 70% 62% / 0.12);
+      border: 1px solid hsl(310 70% 62% / 0.3);
+      color: var(--magenta);
+      font-size: 11px; flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .proj-checklist strong { color: var(--text); }
+    .proj-checklist span  { color: var(--muted); }
+
+    /* ──────────────────────────────
+       REPO SECTION / CTA
+    ────────────────────────────── */
+    .cta-block {
+      position: relative; z-index: 1;
+      border-top: 1px solid var(--border);
+      background: var(--bg2);
+      padding: 96px 24px;
+      text-align: center;
+    }
+    .cta-block h2 {
+      font-size: clamp(28px, 4vw, 46px);
+      font-weight: 700; margin-bottom: 16px;
+    }
+    .cta-block p {
+      font-size: 17px; color: var(--muted);
+      max-width: 500px; margin: 0 auto 40px;
+      line-height: 1.7;
+    }
+    .cta-actions {
+      display: flex; align-items: center; gap: 16px;
+      justify-content: center; flex-wrap: wrap;
+    }
+    .btn-github {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 14px 28px;
+      border-radius: 10px;
+      background: hsl(230, 18%, 14%);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 14px; font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-github:hover {
+      background: hsl(230, 18%, 18%);
+      border-color: hsl(230 20% 30%);
+    }
+
+    /* ──────────────────────────────
+       FOOTER
+    ────────────────────────────── */
+    footer {
+      position: relative; z-index: 1;
+      border-top: 1px solid var(--border);
+      padding: 32px 48px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 16px;
+    }
+    .footer-brand {
+      font-family: var(--mono); font-size: 11px; letter-spacing: 4px;
+      color: var(--cyan);
+    }
+    .footer-links { display: flex; gap: 24px; }
+    .footer-links a {
+      text-decoration: none;
+      font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
+      color: var(--muted);
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--text); }
+    .footer-copy {
+      font-family: var(--mono); font-size: 10px;
+      color: hsl(230 15% 30%);
+    }
+
+    /* ──────────────────────────────
+       DIVIDER
+    ────────────────────────────── */
+    .full-divider {
+      position: relative; z-index: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border) 20%, var(--border) 80%, transparent);
+    }
+
+    /* ──────────────────────────────
+       SCROLL FADE IN
+    ────────────────────────────── */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.65s ease, transform 0.65s ease;
+    }
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ──────────────────────────────
+       RESPONSIVE NAV
+    ────────────────────────────── */
+    @media (max-width: 640px) {
+      nav { padding: 0 20px; }
+      .nav-links { display: none; }
+      footer { padding: 24px 20px; }
+      .stat-item { min-width: 50%; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="glow-bg"></div>
+
+<!-- ── Nav ── -->
+<nav>
+  <a href="#" class="nav-brand">
+    <div class="nav-logo">
+      <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 9 L5 4 L8 12 L11 6 L14 9 L16 9" stroke="hsl(187,80%,55%)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <span class="nav-wordmark">SENTIO</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#how">HOW IT WORKS</a></li>
+    <li><a href="#features">FEATURES</a></li>
+    <li><a href="#emotions">EMOTIONS</a></li>
+    <li><a href="#projection">PROJECTION</a></li>
+    <li><a href="#stack">STACK</a></li>
+  </ul>
+  <a href="https://github.com/dumildematos/master-project-2" class="nav-cta" target="_blank" rel="noopener">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+    GITHUB
+  </a>
+</nav>
+
+<!-- ── Hero ── -->
+<div class="hero">
+  <!-- Decorative EEG wave SVG -->
+  <svg class="hero-wave" viewBox="0 0 700 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0 60 L60 60 L80 20 L100 100 L120 40 L140 80 L155 60 L220 60 L240 10 L260 110 L275 55 L290 65 L310 60 L380 60 L400 25 L415 95 L430 45 L445 75 L460 60 L540 60 L555 30 L575 90 L590 50 L610 70 L630 60 L700 60"
+      stroke="hsl(187,80%,55%)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+
+  <div class="hero-chip">
+    <span class="chip-dot"></span>
+    MASTER THESIS PROJECT · 2026
+  </div>
+
+  <h1>
+    <span class="accent-cyan">Brainwaves</span> become<br>
+    <span class="accent-magenta">living fashion</span><br>
+    in <span class="accent-purple">real time</span>
+  </h1>
+
+  <p class="hero-sub">
+    Sentio reads EEG signals from a Muse headband, maps emotional states
+    through AI, and projects generative visuals onto a dress-form mannequin —
+    turning neuroscience into wearable art.
+  </p>
+
+  <div class="hero-actions">
+    <a href="https://github.com/dumildematos/master-project-2" class="btn-primary" target="_blank" rel="noopener">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      View on GitHub
+    </a>
+    <a href="#how" class="btn-ghost">
+      How it works
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    </a>
+  </div>
+
+  <!-- Canvas mockup preview with mannequin + capsule particles -->
+  <div class="hero-visual fade-in">
+    <div class="hero-canvas-mock">
+      <!-- Generated capsule particles via CSS -->
+      <div class="capsule-layer" id="capsule-layer"></div>
+
+      <!-- Dress-form silhouette inside preview -->
+      <svg class="mock-mannequin" viewBox="0 0 200 310" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="hg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#fff" stop-opacity="1"/>
+            <stop offset="100%" stop-color="#fff" stop-opacity="0.2"/>
+          </linearGradient>
+        </defs>
+        <rect x="83" y="2" width="34" height="22" rx="10" fill="none" stroke="url(#hg)" stroke-width="2"/>
+        <path d="M 50 36 C 38 32 22 34 18 42 C 14 50 18 58 28 59 L 42 56 L 46 44 Z" fill="none" stroke="url(#hg)" stroke-width="2"/>
+        <path d="M 150 36 C 162 32 178 34 182 42 C 186 50 182 58 172 59 L 158 56 L 154 44 Z" fill="none" stroke="url(#hg)" stroke-width="2"/>
+        <path d="M 83 24 C 74 24 58 28 50 36 L 46 44 C 40 48 36 54 34 62 C 30 74 28 88 28 100 C 28 116 30 130 33 142 C 36 154 40 164 44 172 C 48 180 52 186 56 192 C 60 198 64 202 68 208 L 132 208 C 136 202 140 198 144 192 C 148 186 152 180 156 172 C 160 164 164 154 167 142 C 170 130 172 116 172 100 C 172 88 170 74 166 62 C 164 54 160 48 154 44 L 150 36 C 142 28 126 24 117 24 L 100 22 Z" fill="none" stroke="url(#hg)" stroke-width="2.2"/>
+        <line x1="100" y1="208" x2="100" y2="290" stroke="url(#hg)" stroke-width="2.5"/>
+        <line x1="60" y1="290" x2="140" y2="290" stroke="url(#hg)" stroke-width="3"/>
+        <line x1="60" y1="290" x2="48" y2="302" stroke="url(#hg)" stroke-width="2"/>
+        <line x1="140" y1="290" x2="152" y2="302" stroke="url(#hg)" stroke-width="2"/>
+      </svg>
+
+      <div class="mock-live"><div class="mock-live-dot"></div>LIVE</div>
+      <div class="mock-emotion-tag" id="emotion-tag">● CALM</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Stats bar ── -->
+<div class="stats-bar">
+  <div class="stat-item fade-in">
+    <div class="stat-value" style="color:var(--cyan)">5</div>
+    <div class="stat-label">Emotion States</div>
+  </div>
+  <div class="stat-item fade-in" style="transition-delay:0.1s">
+    <div class="stat-value" style="color:var(--purple)">256 Hz</div>
+    <div class="stat-label">EEG Sample Rate</div>
+  </div>
+  <div class="stat-item fade-in" style="transition-delay:0.2s">
+    <div class="stat-value" style="color:var(--magenta)">450</div>
+    <div class="stat-label">Capsule Instances</div>
+  </div>
+  <div class="stat-item fade-in" style="transition-delay:0.3s">
+    <div class="stat-value" style="color:var(--amber)">&lt; 50ms</div>
+    <div class="stat-label">End-to-End Latency</div>
+  </div>
+</div>
+
+<!-- ── How it works ── -->
+<section id="how">
+  <div class="section-tag">Pipeline</div>
+  <h2 class="section-title fade-in">From brainwave to<br><span style="color:var(--cyan)">projected light</span></h2>
+  <p class="section-sub fade-in">Five stages transform raw EEG oscillations into colour, motion, and form on a physical garment.</p>
+
+  <div class="pipeline fade-in">
+    <div class="pipe-step">
+      <div class="pipe-num">01</div>
+      <div class="pipe-icon" style="background:hsl(187 80% 55% / 0.1); border:1px solid hsl(187 80% 55% / 0.3)">🧠</div>
+      <div class="pipe-name">EEG Capture</div>
+      <div class="pipe-desc">Muse 2 headband streams 4-channel EEG at 256 Hz via Bluetooth to BlueMuse, then LSL.</div>
+      <span class="pipe-tag" style="background:hsl(187 80% 55%/0.08);border:1px solid hsl(187 80% 55%/0.3);color:var(--cyan)">Muse 2 · LSL</span>
+    </div>
+    <div class="pipe-step">
+      <div class="pipe-num">02</div>
+      <div class="pipe-icon" style="background:hsl(262 70% 65% / 0.1); border:1px solid hsl(262 70% 65% / 0.3)">⚡</div>
+      <div class="pipe-name">Signal Processing</div>
+      <div class="pipe-desc">FastAPI backend extracts α, β, θ, γ, δ band power via BrainFlow, normalises and checks signal quality.</div>
+      <span class="pipe-tag" style="background:hsl(262 70% 65%/0.08);border:1px solid hsl(262 70% 65%/0.3);color:var(--purple)">BrainFlow · FastAPI</span>
+    </div>
+    <div class="pipe-step">
+      <div class="pipe-num">03</div>
+      <div class="pipe-icon" style="background:hsl(38 92% 58% / 0.1); border:1px solid hsl(38 92% 58% / 0.3)">🤖</div>
+      <div class="pipe-name">Emotion Mapping</div>
+      <div class="pipe-desc">Rule-based emotion engine classifies each window into calm, focused, stressed, relaxed, or excited.</div>
+      <span class="pipe-tag" style="background:hsl(38 92% 58%/0.08);border:1px solid hsl(38 92% 58%/0.3);color:var(--amber)">Rule-based AI</span>
+    </div>
+    <div class="pipe-step">
+      <div class="pipe-num">04</div>
+      <div class="pipe-icon" style="background:hsl(310 70% 62% / 0.1); border:1px solid hsl(310 70% 62% / 0.3)">🎨</div>
+      <div class="pipe-name">Visual Generation</div>
+      <div class="pipe-desc">TouchDesigner generates 450 noise-driven capsule instances coloured by a per-emotion gradient palette.</div>
+      <span class="pipe-tag" style="background:hsl(310 70% 62%/0.08);border:1px solid hsl(310 70% 62%/0.3);color:var(--magenta)">TouchDesigner · OSC</span>
+    </div>
+    <div class="pipe-step">
+      <div class="pipe-num">05</div>
+      <div class="pipe-icon" style="background:hsl(187 80% 55% / 0.1); border:1px solid hsl(187 80% 55% / 0.3)">👗</div>
+      <div class="pipe-name">Projection</div>
+      <div class="pipe-desc">Stoner COMP maps the texture onto the headless dress-form mannequin surface in real time.</div>
+      <span class="pipe-tag" style="background:hsl(187 80% 55%/0.08);border:1px solid hsl(187 80% 55%/0.3);color:var(--cyan)">Stoner · HDMI</span>
+    </div>
+  </div>
+</section>
+
+<div class="full-divider"></div>
+
+<!-- ── Features ── -->
+<section id="features">
+  <div class="section-tag">Capabilities</div>
+  <h2 class="section-title fade-in">Everything in one<br><span style="color:var(--purple)">unified system</span></h2>
+  <p class="section-sub fade-in">From hardware acquisition to projection mapping, Sentio handles the complete pipeline.</p>
+
+  <div class="features-grid">
+    <div class="feat-card fade-in">
+      <div class="feat-icon" style="background:hsl(187 80% 55%/0.1);border:1px solid hsl(187 80% 55%/0.2)">📡</div>
+      <div class="feat-title">Real-time EEG streaming</div>
+      <div class="feat-desc">BrainFlow acquires data from the Muse 2 at 256 Hz. A built-in EEG simulator lets you develop without hardware.</div>
+      <div class="feat-stack"><span class="tag">BrainFlow</span><span class="tag">LSL</span><span class="tag">BlueMuse</span></div>
+    </div>
+    <div class="feat-card fade-in" style="transition-delay:0.08s">
+      <div class="feat-icon" style="background:hsl(262 70% 65%/0.1);border:1px solid hsl(262 70% 65%/0.2)">🧮</div>
+      <div class="feat-title">Multi-band feature extraction</div>
+      <div class="feat-desc">Alpha, beta, theta, gamma, and delta power computed per window. Signal quality scoring prevents noisy classifications.</div>
+      <div class="feat-stack"><span class="tag">Python</span><span class="tag">NumPy</span><span class="tag">FastAPI</span></div>
+    </div>
+    <div class="feat-card fade-in" style="transition-delay:0.16s">
+      <div class="feat-icon" style="background:hsl(38 92% 58%/0.1);border:1px solid hsl(38 92% 58%/0.2)">💡</div>
+      <div class="feat-title">React monitoring dashboard</div>
+      <div class="feat-desc">Live WebSocket dashboard with band-power charts, emotion orb, design params, and a Manual Override mode for demos.</div>
+      <div class="feat-stack"><span class="tag">React 18</span><span class="tag">Vite</span><span class="tag">Framer Motion</span></div>
+    </div>
+    <div class="feat-card fade-in" style="transition-delay:0.08s">
+      <div class="feat-icon" style="background:hsl(310 70% 62%/0.1);border:1px solid hsl(310 70% 62%/0.2)">🎮</div>
+      <div class="feat-title">Manual override mode</div>
+      <div class="feat-desc">Slide band values and pick emotion presets manually via the frontend. OSC packets fire instantly to TouchDesigner for live demos without a headset.</div>
+      <div class="feat-stack"><span class="tag">OSC</span><span class="tag">REST API</span></div>
+    </div>
+    <div class="feat-card fade-in" style="transition-delay:0.16s">
+      <div class="feat-icon" style="background:hsl(187 80% 55%/0.1);border:1px solid hsl(187 80% 55%/0.2)">🗺️</div>
+      <div class="feat-title">Projection mapping</div>
+      <div class="feat-desc">TouchDesigner's Stoner COMP warps the generative visual to the exact contour of the dress-form mannequin. Corner-pin calibration saved per-project.</div>
+      <div class="feat-stack"><span class="tag">Stoner COMP</span><span class="tag">TD 2025</span></div>
+    </div>
+    <div class="feat-card fade-in" style="transition-delay:0.24s">
+      <div class="feat-icon" style="background:hsl(142 70% 55%/0.1);border:1px solid hsl(142 70% 55%/0.2)">🔌</div>
+      <div class="feat-title">Disconnect detection</div>
+      <div class="feat-desc">Both the frontend and TD mockup detect signal dropout in real time and surface an actionable reconnect modal with a recovery countdown.</div>
+      <div class="feat-stack"><span class="tag">WebSocket</span><span class="tag">Signal Quality</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="full-divider"></div>
+
+<!-- ── Emotion palette ── -->
+<section id="emotions">
+  <div class="section-tag">Emotional States</div>
+  <h2 class="section-title fade-in">Five emotions,<br><span style="color:var(--magenta)">five visual worlds</span></h2>
+  <p class="section-sub fade-in">Each classified state drives a distinct colour palette, flow speed, and capsule behaviour.</p>
+
+  <div class="emotions-row">
+    <div class="emo-card fade-in">
+      <div class="emo-orb" style="background:hsl(210 80% 55%/0.15);border:1px solid hsl(210 80% 55%/0.4)">😌</div>
+      <div class="emo-name" style="color:hsl(210,80%,65%)">CALM</div>
+      <div class="emo-bands">↑α  ↓β  ↓γ</div>
+    </div>
+    <div class="emo-card fade-in" style="transition-delay:0.07s">
+      <div class="emo-orb" style="background:hsl(40 90% 55%/0.15);border:1px solid hsl(40 90% 55%/0.4)">🎯</div>
+      <div class="emo-name" style="color:hsl(40,90%,65%)">FOCUSED</div>
+      <div class="emo-bands">↑β  ↓θ  ↓α</div>
+    </div>
+    <div class="emo-card fade-in" style="transition-delay:0.14s">
+      <div class="emo-orb" style="background:hsl(0 80% 55%/0.15);border:1px solid hsl(0 80% 55%/0.4)">😤</div>
+      <div class="emo-name" style="color:hsl(0,80%,65%)">STRESSED</div>
+      <div class="emo-bands">↑β  ↑γ  ↓α</div>
+    </div>
+    <div class="emo-card fade-in" style="transition-delay:0.21s">
+      <div class="emo-orb" style="background:hsl(180 70% 45%/0.15);border:1px solid hsl(180 70% 45%/0.4)">🌊</div>
+      <div class="emo-name" style="color:hsl(180,70%,55%)">RELAXED</div>
+      <div class="emo-bands">↑α  ↑θ  ↓β</div>
+    </div>
+    <div class="emo-card fade-in" style="transition-delay:0.28s">
+      <div class="emo-orb" style="background:hsl(285 70% 55%/0.15);border:1px solid hsl(285 70% 55%/0.4)">⚡</div>
+      <div class="emo-name" style="color:hsl(285,70%,70%)">EXCITED</div>
+      <div class="emo-bands">↑γ  ↑β  ↑α</div>
+    </div>
+  </div>
+</section>
+
+<div class="full-divider"></div>
+
+<!-- ── Projection / Mannequin ── -->
+<section id="projection">
+  <div class="section-tag">Physical Setup</div>
+  <h2 class="section-title fade-in">Projected onto a<br><span style="color:var(--magenta)">dress-form mannequin</span></h2>
+
+  <div class="projection-split">
+    <div>
+      <p style="font-size:15px;color:var(--muted);line-height:1.75;margin-bottom:28px;" class="fade-in">
+        A headless torso dress form on a pole stand serves as the projection surface.
+        Its matte-white fabric body reflects projected colour faithfully and its familiar
+        silhouette grounds the abstract brainwave visuals in fashion.
+      </p>
+      <ul class="proj-checklist fade-in">
+        <li><strong>Headless torso dress form</strong> <span>— no arms, matte white surface, pole stand base</span></li>
+        <li><strong>Projector at 1.5–2.5 m</strong> <span>— perpendicular to torso front, slightly elevated</span></li>
+        <li><strong>Stoner COMP corner-pin</strong> <span>— maps image exactly to shoulder-to-hip boundary</span></li>
+        <li><strong>Darkened room</strong> <span>— blackout curtains or dark exhibition booth for best colour saturation</span></li>
+        <li><strong>Gaffer-taped base</strong> <span>— prevents stand movement after calibration is set</span></li>
+      </ul>
+    </div>
+
+    <div class="proj-diagram fade-in">
+      <!-- Dress-form SVG illustration, larger and lit with magenta glow -->
+      <svg viewBox="0 0 200 310" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="hsl(310,80%,78%)" stop-opacity="1"/>
+            <stop offset="70%"  stop-color="hsl(262,70%,65%)" stop-opacity="0.8"/>
+            <stop offset="100%" stop-color="hsl(262,70%,65%)" stop-opacity="0.2"/>
+          </linearGradient>
+          <!-- Glow filter -->
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- Subtle torso fill -->
+        <path d="M 83 24 C 74 24 58 28 50 36 L 46 44 C 40 48 36 54 34 62 C 30 74 28 88 28 100 C 28 116 30 130 33 142 C 36 154 40 164 44 172 C 48 180 52 186 56 192 C 60 198 64 202 68 208 L 132 208 C 136 202 140 198 144 192 C 148 186 152 180 156 172 C 160 164 164 154 167 142 C 170 130 172 116 172 100 C 172 88 170 74 166 62 C 164 54 160 48 154 44 L 150 36 C 142 28 126 24 117 24 L 100 22 Z"
+          fill="hsl(310 70% 62% / 0.06)"/>
+
+        <!-- Neck stub -->
+        <rect x="83" y="2" width="34" height="22" rx="10"
+          fill="none" stroke="url(#pg)" stroke-width="2" filter="url(#glow)"/>
+        <!-- Left shoulder -->
+        <path d="M 50 36 C 38 32 22 34 18 42 C 14 50 18 58 28 59 L 42 56 L 46 44 Z"
+          fill="hsl(310 70% 62% / 0.06)" stroke="url(#pg)" stroke-width="2" filter="url(#glow)"/>
+        <!-- Right shoulder -->
+        <path d="M 150 36 C 162 32 178 34 182 42 C 186 50 182 58 172 59 L 158 56 L 154 44 Z"
+          fill="hsl(310 70% 62% / 0.06)" stroke="url(#pg)" stroke-width="2" filter="url(#glow)"/>
+        <!-- Torso outline -->
+        <path d="M 83 24 C 74 24 58 28 50 36 L 46 44 C 40 48 36 54 34 62 C 30 74 28 88 28 100 C 28 116 30 130 33 142 C 36 154 40 164 44 172 C 48 180 52 186 56 192 C 60 198 64 202 68 208 L 132 208 C 136 202 140 198 144 192 C 148 186 152 180 156 172 C 160 164 164 154 167 142 C 170 130 172 116 172 100 C 172 88 170 74 166 62 C 164 54 160 48 154 44 L 150 36 C 142 28 126 24 117 24 L 100 22 Z"
+          fill="none" stroke="url(#pg)" stroke-width="2.2" filter="url(#glow)"/>
+        <!-- Guide lines -->
+        <line x1="36" y1="88"  x2="164" y2="88"  stroke="hsl(310 70% 62%)" stroke-opacity="0.2" stroke-width="0.8" stroke-dasharray="4 6"/>
+        <line x1="32" y1="132" x2="168" y2="132" stroke="hsl(262 70% 65%)" stroke-opacity="0.2" stroke-width="0.8" stroke-dasharray="4 6"/>
+        <line x1="100" y1="24" x2="100" y2="208" stroke="#fff" stroke-opacity="0.1" stroke-width="0.7" stroke-dasharray="3 5"/>
+        <!-- Pole -->
+        <line x1="100" y1="208" x2="100" y2="290" stroke="url(#pg)" stroke-width="2.5" stroke-opacity="0.6"/>
+        <!-- Base -->
+        <line x1="60" y1="290" x2="140" y2="290" stroke="url(#pg)" stroke-width="3" stroke-opacity="0.5"/>
+        <line x1="60" y1="290" x2="48"  y2="302" stroke="url(#pg)" stroke-width="2" stroke-opacity="0.4"/>
+        <line x1="140" y1="290" x2="152" y2="302" stroke="url(#pg)" stroke-width="2" stroke-opacity="0.4"/>
+        <!-- Projection beam lines from top -->
+        <line x1="100" y1="-10" x2="28"  y2="60"  stroke="var(--amber)" stroke-opacity="0.18" stroke-width="1" stroke-dasharray="5 7"/>
+        <line x1="100" y1="-10" x2="172" y2="60"  stroke="var(--amber)" stroke-opacity="0.18" stroke-width="1" stroke-dasharray="5 7"/>
+        <line x1="100" y1="-10" x2="100" y2="60"  stroke="var(--amber)" stroke-opacity="0.24" stroke-width="1" stroke-dasharray="5 7"/>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<div class="full-divider"></div>
+
+<!-- ── Tech Stack ── -->
+<section id="stack">
+  <div class="section-tag">Technology</div>
+  <h2 class="section-title fade-in">Built on a<br><span style="color:var(--cyan)">modern open stack</span></h2>
+  <p class="section-sub fade-in">Every layer chosen for real-time performance and ease of integration.</p>
+
+  <div class="stack-grid">
+    <div class="stack-card fade-in">
+      <div class="stack-icon" style="background:hsl(187 80% 55%/0.1);border:1px solid hsl(187 80% 55%/0.2)">🐍</div>
+      <div><div class="stack-name">FastAPI</div><div class="stack-role">EEG processing · REST · WebSocket</div></div>
+    </div>
+    <div class="stack-card fade-in" style="transition-delay:0.06s">
+      <div class="stack-icon" style="background:hsl(262 70% 65%/0.1);border:1px solid hsl(262 70% 65%/0.2)">⚛️</div>
+      <div><div class="stack-name">React 18 + Vite</div><div class="stack-role">Monitoring dashboard · TypeScript</div></div>
+    </div>
+    <div class="stack-card fade-in" style="transition-delay:0.12s">
+      <div class="stack-icon" style="background:hsl(38 92% 58%/0.1);border:1px solid hsl(38 92% 58%/0.2)">🎨</div>
+      <div><div class="stack-name">TouchDesigner 2025</div><div class="stack-role">Visual generation · Stoner projection</div></div>
+    </div>
+    <div class="stack-card fade-in" style="transition-delay:0.18s">
+      <div class="stack-icon" style="background:hsl(310 70% 62%/0.1);border:1px solid hsl(310 70% 62%/0.2)">🧠</div>
+      <div><div class="stack-name">BrainFlow</div><div class="stack-role">Muse 2 EEG acquisition · band power</div></div>
+    </div>
+    <div class="stack-card fade-in" style="transition-delay:0.24s">
+      <div class="stack-icon" style="background:hsl(187 80% 55%/0.1);border:1px solid hsl(187 80% 55%/0.2)">📡</div>
+      <div><div class="stack-name">OSC Protocol</div><div class="stack-role">Real-time parameter push to TD</div></div>
+    </div>
+    <div class="stack-card fade-in" style="transition-delay:0.30s">
+      <div class="stack-icon" style="background:hsl(262 70% 65%/0.1);border:1px solid hsl(262 70% 65%/0.2)">🔗</div>
+      <div><div class="stack-name">LSL · BlueMuse</div><div class="stack-role">Bluetooth EEG stream to backend</div></div>
+    </div>
+    <div class="stack-card fade-in" style="transition-delay:0.36s">
+      <div class="stack-icon" style="background:hsl(38 92% 58%/0.1);border:1px solid hsl(38 92% 58%/0.2)">💅</div>
+      <div><div class="stack-name">Tailwind + shadcn/ui</div><div class="stack-role">Dashboard styling · component library</div></div>
+    </div>
+    <div class="stack-card fade-in" style="transition-delay:0.42s">
+      <div class="stack-icon" style="background:hsl(142 70% 55%/0.1);border:1px solid hsl(142 70% 55%/0.2)">🐙</div>
+      <div><div class="stack-name">GitHub Pages</div><div class="stack-role">This landing page · open source</div></div>
+    </div>
+  </div>
+</section>
+
+<div class="full-divider"></div>
+
+<!-- ── CTA ── -->
+<div class="cta-block">
+  <h2 class="fade-in">Open source &amp;<br>fully documented</h2>
+  <p class="fade-in">All source code, the TouchDesigner guide, and setup instructions are available on GitHub.</p>
+  <div class="cta-actions fade-in">
+    <a href="https://github.com/dumildematos/master-project-2" class="btn-github" target="_blank" rel="noopener">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      dumildematos/master-project-2
+    </a>
+    <a href="https://github.com/dumildematos/master-project-2/tree/main/touchdesigner" class="btn-ghost" target="_blank" rel="noopener">
+      TouchDesigner Guide →
+    </a>
+  </div>
+</div>
+
+<!-- ── Footer ── -->
+<footer>
+  <div class="footer-brand">SENTIO</div>
+  <div class="footer-links">
+    <a href="https://github.com/dumildematos/master-project-2" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://github.com/dumildematos/master-project-2/tree/main/backend" target="_blank" rel="noopener">Backend</a>
+    <a href="https://github.com/dumildematos/master-project-2/tree/main/frontend" target="_blank" rel="noopener">Frontend</a>
+    <a href="https://github.com/dumildematos/master-project-2/tree/main/touchdesigner" target="_blank" rel="noopener">TouchDesigner</a>
+  </div>
+  <div class="footer-copy">© 2026 · Master Thesis · EEG-Driven Generative Fashion</div>
+</footer>
+
+<script>
+  // ── Capsule particles ──
+  (function() {
+    const layer = document.getElementById('capsule-layer');
+    if (!layer) return;
+    const EMOTIONS = [
+      { name: 'CALM',     hueA: 200, hueB: 230 },
+      { name: 'FOCUSED',  hueA: 30,  hueB: 55  },
+      { name: 'STRESSED', hueA: 350, hueB: 15  },
+      { name: 'RELAXED',  hueA: 165, hueB: 195 },
+      { name: 'EXCITED',  hueA: 270, hueB: 300 },
+    ];
+    let emoIdx = 0;
+    const tag = document.getElementById('emotion-tag');
+
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    const N = 55;
+    const caps = [];
+    for (let i = 0; i < N; i++) {
+      const el = document.createElement('div');
+      el.className = 'cap';
+      const len  = 18 + Math.random() * 45;
+      const wid  = 4  + Math.random() * 9;
+      const x    = Math.random() * 100;
+      const y    = Math.random() * 100;
+      const r    = (Math.random() - 0.5) * 160;
+      const dur  = 2.8 + Math.random() * 3.5;
+      const del  = Math.random() * 3;
+      const t    = Math.random();
+      el.style.cssText = `
+        width:${len}px; height:${wid}px;
+        left:${x}%; top:${y}%;
+        --r:${r}deg;
+        transform: rotate(${r}deg);
+        animation-duration: ${dur}s;
+        animation-delay: -${del}s;
+      `;
+      layer.appendChild(el);
+      caps.push({ el, t });
+    }
+
+    let currentEmo = EMOTIONS[0];
+    let targetEmo  = EMOTIONS[0];
+    let blendT = 1;
+
+    function applyColors() {
+      caps.forEach(({ el, t }) => {
+        const hue = lerp(
+          lerp(currentEmo.hueA, targetEmo.hueA, blendT),
+          lerp(currentEmo.hueB, targetEmo.hueB, blendT),
+          t
+        );
+        el.style.background = `hsl(${hue}, 70%, 58%)`;
+      });
+    }
+
+    // Cycle emotions every 3.5 seconds
+    setInterval(() => {
+      currentEmo = EMOTIONS[emoIdx % EMOTIONS.length];
+      emoIdx = (emoIdx + 1) % EMOTIONS.length;
+      targetEmo = EMOTIONS[emoIdx];
+      blendT = 0;
+      if (tag) tag.textContent = `● ${targetEmo.name}`;
+    }, 3500);
+
+    // Animate blend
+    let last = performance.now();
+    function tick(now) {
+      const dt = (now - last) / 1000;
+      last = now;
+      if (blendT < 1) {
+        blendT = Math.min(1, blendT + dt * 0.9);
+        applyColors();
+      }
+      requestAnimationFrame(tick);
+    }
+    applyColors();
+    requestAnimationFrame(tick);
+  })();
+
+  // ── Scroll fade-in ──
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.12 });
+
+  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+  // Trigger hero elements immediately
+  document.querySelectorAll('.hero .fade-in').forEach(el => el.classList.add('visible'));
+</script>
+</body>
+</html>
