@@ -817,6 +817,160 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
 .trouble-table tbody td:first-child { color: var(--danger); font-family: var(--font-body); font-size: 13px; }
 
 /* ═══════════════════════════════════════════════
+   CONTAINER ARCHITECTURE
+═══════════════════════════════════════════════ */
+.arch-overview {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 24px 0;
+  flex-wrap: wrap;
+}
+.arch-container-thumb {
+  flex: 1; min-width: 120px;
+  padding: 18px 16px;
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 6px;
+  position: relative;
+}
+.arch-container-thumb:last-child { border-right: none; }
+.arch-thumb-num {
+  font-family: var(--font-mono); font-size: 8px; letter-spacing: 2px; color: var(--muted);
+}
+.arch-thumb-name {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+  color: var(--cyan);
+}
+.arch-thumb-role {
+  font-size: 10px; color: var(--muted); line-height: 1.5;
+}
+.arch-thumb-arrow {
+  position: absolute; right: -11px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px; color: var(--border-glow); z-index: 2;
+}
+
+/* Container detail card */
+.container-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin: 28px 0;
+  overflow: hidden;
+}
+.container-card-header {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 22px 24px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+}
+.container-card-icon {
+  width: 42px; height: 42px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.container-card-meta { flex: 1; }
+.container-card-name {
+  font-family: var(--font-mono); font-size: 14px; font-weight: 500;
+  color: var(--white); margin-bottom: 4px;
+}
+.container-card-name code {
+  background: none; padding: 0; font-size: 14px; color: var(--cyan);
+}
+.container-card-desc { font-size: 13px; color: var(--muted); line-height: 1.55; }
+.container-card-badges { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.container-badge {
+  padding: 2px 8px; border-radius: 100px;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 1px;
+  border: 1px solid;
+}
+.container-badge.comp { background: hsl(220 15% 50% / 0.1); border-color: hsl(220 15% 40% / 0.4); color: var(--muted); }
+.container-badge.wires { background: hsl(187 80% 55% / 0.06); border-color: var(--cyan-dim); color: var(--cyan); }
+
+/* Operator list inside container card */
+.op-list { padding: 8px 0; }
+.op-row {
+  display: grid;
+  grid-template-columns: 52px 1fr 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  border-bottom: 1px solid hsl(220 20% 12%);
+  transition: background 0.15s;
+}
+.op-row:last-child { border-bottom: none; }
+.op-row:hover { background: hsl(220 20% 10%); }
+.op-row-badge {
+  display: inline-block; padding: 2px 7px; border-radius: 5px;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  letter-spacing: 0.5px; text-align: center;
+  border: 1px solid;
+}
+.op-row-badge.top  { background: hsl(270 60% 55% / 0.12); border-color: hsl(270 60% 55% / 0.4); color: hsl(270 60% 75%); }
+.op-row-badge.chop { background: hsl(145 60% 48% / 0.12); border-color: hsl(145 60% 48% / 0.4); color: hsl(145 60% 65%); }
+.op-row-badge.dat  { background: hsl(187 80% 55% / 0.12); border-color: var(--cyan-dim);          color: var(--cyan); }
+.op-row-badge.sop  { background: hsl(210 80% 55% / 0.12); border-color: hsl(210 80% 55% / 0.4);  color: hsl(210 80% 70%); }
+.op-row-badge.comp { background: hsl(220 15% 50% / 0.12); border-color: hsl(220 15% 40% / 0.4);  color: var(--muted); }
+.op-row-badge.mat  { background: hsl(38 92% 58% / 0.12);  border-color: hsl(38 92% 40% / 0.4);   color: var(--amber); }
+.op-row-name {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--white);
+}
+.op-row-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.op-row-tag {
+  font-family: var(--font-mono); font-size: 9px; color: var(--muted);
+  white-space: nowrap; text-align: right;
+}
+/* Sub-list for operators inside a nested COMP (e.g. Geometry COMP) */
+.op-sublist {
+  margin: 0 24px 12px;
+  padding: 8px 0;
+  background: hsl(220 25% 6%);
+  border-radius: 8px;
+  border: 1px solid hsl(220 20% 14%);
+}
+.op-sublist-label {
+  padding: 4px 16px 8px;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px;
+  color: var(--muted); border-bottom: 1px solid hsl(220 20% 14%);
+  margin-bottom: 4px;
+}
+.op-sub-row {
+  display: grid;
+  grid-template-columns: 52px 1fr 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 16px;
+}
+
+/* Container wiring diagram */
+.arch-flow {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin: 24px 0;
+  display: flex; align-items: center; justify-content: center; gap: 0;
+  flex-wrap: wrap;
+}
+.arch-flow-item {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid;
+  min-width: 118px; text-align: center;
+}
+.arch-flow-name { font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
+.arch-flow-role { font-size: 9px; color: var(--muted); }
+.arch-flow-wire {
+  font-size: 18px; color: var(--border-glow);
+  padding: 0 4px; align-self: center;
+}
+
+/* ═══════════════════════════════════════════════
    SCROLLSPY + ACTIVE STATES
 ═══════════════════════════════════════════════ */
 .section-anchor {
@@ -894,35 +1048,44 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
     <a href="#ch2-install" class="nav-link nav-sub">Installing TD</a>
     <a href="#ch2-project" class="nav-link nav-sub">Creating the project</a>
 
+    <div class="nav-chapter">Architecture</div>
+    <a href="#ch-net" class="nav-link"><span class="nav-num">03</span> Container Architecture</a>
+    <a href="#ch-net-overview"   class="nav-link nav-sub">Overview map</a>
+    <a href="#ch-net-osc"        class="nav-link nav-sub">container_osc</a>
+    <a href="#ch-net-signal"     class="nav-link nav-sub">container_signal</a>
+    <a href="#ch-net-visual"     class="nav-link nav-sub">container_visual</a>
+    <a href="#ch-net-projection" class="nav-link nav-sub">container_projection</a>
+    <a href="#ch-net-debug"      class="nav-link nav-sub">container_debug</a>
+
     <div class="nav-chapter">Data Pipeline</div>
-    <a href="#ch3"  class="nav-link"><span class="nav-num">03</span> Receiving OSC Data</a>
+    <a href="#ch3"  class="nav-link"><span class="nav-num">04</span> Receiving OSC Data</a>
     <a href="#ch3-osc"      class="nav-link nav-sub">What is OSC?</a>
     <a href="#ch3-oscin"    class="nav-link nav-sub">OSCin CHOP</a>
     <a href="#ch3-channels" class="nav-link nav-sub">Channel reference</a>
-    <a href="#ch4"  class="nav-link"><span class="nav-num">04</span> Processing Network</a>
+    <a href="#ch4"  class="nav-link"><span class="nav-num">05</span> Processing Network</a>
     <a href="#ch4-filter"  class="nav-link nav-sub">Smoothing signals</a>
     <a href="#ch4-emotion" class="nav-link nav-sub">Emotion mapping</a>
     <a href="#ch4-refs"    class="nav-link nav-sub">CHOP expressions</a>
 
     <div class="nav-chapter">Visuals</div>
-    <a href="#ch5"  class="nav-link"><span class="nav-num">05</span> Fluid Generative Visual</a>
-    <a href="#ch5-noise"    class="nav-link nav-sub">Noise TOP field</a>
-    <a href="#ch5-feedback" class="nav-link nav-sub">Feedback loop</a>
+    <a href="#ch5"  class="nav-link"><span class="nav-num">06</span> Fluid Generative Visual</a>
+    <a href="#ch5-noise"     class="nav-link nav-sub">Noise TOP field</a>
+    <a href="#ch5-feedback"  class="nav-link nav-sub">Feedback loop</a>
     <a href="#ch5-particles" class="nav-link nav-sub">Particle SOP</a>
-    <a href="#ch5-color"    class="nav-link nav-sub">Colour grading</a>
+    <a href="#ch5-color"     class="nav-link nav-sub">Colour grading</a>
 
     <div class="nav-chapter">Projection</div>
-    <a href="#ch6"  class="nav-link"><span class="nav-num">06</span> Projection Mapping</a>
+    <a href="#ch6"  class="nav-link"><span class="nav-num">07</span> Projection Mapping</a>
     <a href="#ch6-setup"  class="nav-link nav-sub">Physical setup</a>
     <a href="#ch6-stoner" class="nav-link nav-sub">Stoner COMP</a>
     <a href="#ch6-calib"  class="nav-link nav-sub">Calibration</a>
-    <a href="#ch6-output" class="nav-link nav-sub">Output & resolution</a>
+    <a href="#ch6-output" class="nav-link nav-sub">Output &amp; resolution</a>
 
     <div class="nav-chapter">Scripts</div>
-    <a href="#ch8"  class="nav-link"><span class="nav-num">08</span> Folder Structure</a>
+    <a href="#ch8"  class="nav-link"><span class="nav-num">09</span> Folder Structure</a>
     <a href="#ch8-tree"     class="nav-link nav-sub">Project files</a>
     <a href="#ch8-scripts"  class="nav-link nav-sub">Script files</a>
-    <a href="#ch9"  class="nav-link"><span class="nav-num">09</span> Operator Wiring</a>
+    <a href="#ch9"  class="nav-link"><span class="nav-num">10</span> Operator Wiring</a>
     <a href="#ch9-auto"     class="nav-link nav-sub">Auto-build script</a>
     <a href="#ch9-dats"     class="nav-link nav-sub">DAT connections</a>
     <a href="#ch9-chops"    class="nav-link nav-sub">CHOP connections</a>
@@ -931,7 +1094,7 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
     <a href="#ch9-debug"    class="nav-link nav-sub">Debug commands</a>
 
     <div class="nav-chapter">Reference</div>
-    <a href="#ch7"  class="nav-link"><span class="nav-num">07</span> Troubleshooting</a>
+    <a href="#ch7"  class="nav-link"><span class="nav-num">08</span> Troubleshooting</a>
   </div>
 
   <div class="sidebar-footer">v1.2 · Sentio Project · 2026</div>
@@ -1182,12 +1345,492 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
   </section>
 
   <!-- ══════════════════════════════════════════
-       CHAPTER 3
+       CHAPTER 3 — CONTAINER ARCHITECTURE
+  ══════════════════════════════════════════ -->
+  <span class="section-anchor" id="ch-net"></span>
+  <section class="chapter">
+    <div class="chapter-header">
+      <span class="chapter-num">CHAPTER 03</span>
+      <h2 class="chapter-title">Network Container Architecture</h2>
+    </div>
+    <hr class="chapter-rule">
+
+    <p>
+      The Sentio project is organised into <strong>five top-level Container COMPs</strong>
+      inside the root network of <code>sentio.toe</code>. Each container has a single
+      responsibility. Keeping concerns separated makes it easy to swap out a visual style,
+      re-route OSC inputs, or recalibrate projection without touching unrelated operators.
+    </p>
+
+    <!-- ── Top-level flow overview ── -->
+    <span class="section-anchor" id="ch-net-overview"></span>
+    <h3 class="section-title">Overview — Container Data Flow</h3>
+
+    <div class="arch-flow">
+      <div class="arch-flow-item" style="border-color:hsl(145 60% 48%/0.5);background:hsl(145 60% 48%/0.06)">
+        <div style="font-size:20px">📡</div>
+        <div class="arch-flow-name" style="color:hsl(145,60%,65%)">container_osc</div>
+        <div class="arch-flow-role">OSCIn CHOP · DAT Execute</div>
+      </div>
+      <div class="arch-flow-wire">→</div>
+      <div class="arch-flow-item" style="border-color:hsl(187 80% 55%/0.5);background:hsl(187 80% 55%/0.06)">
+        <div style="font-size:20px">⚡</div>
+        <div class="arch-flow-name" style="color:var(--cyan)">container_signal</div>
+        <div class="arch-flow-role">Filter CHOP · Math · Constants</div>
+      </div>
+      <div class="arch-flow-wire">→</div>
+      <div class="arch-flow-item" style="border-color:hsl(262 60% 62%/0.5);background:hsl(262 60% 62%/0.06)">
+        <div style="font-size:20px">🎨</div>
+        <div class="arch-flow-name" style="color:var(--purple)">container_visual</div>
+        <div class="arch-flow-role">Noise · Feedback · Render · Bloom</div>
+      </div>
+      <div class="arch-flow-wire">→</div>
+      <div class="arch-flow-item" style="border-color:hsl(308 60% 60%/0.5);background:hsl(308 60% 60%/0.06)">
+        <div style="font-size:20px">📽</div>
+        <div class="arch-flow-name" style="color:var(--magenta)">container_projection</div>
+        <div class="arch-flow-role">Stoner COMP · Window COMP</div>
+      </div>
+      <div class="arch-flow-wire">+</div>
+      <div class="arch-flow-item" style="border-color:hsl(38 92% 58%/0.4);background:hsl(38 92% 58%/0.05)">
+        <div style="font-size:20px">🔍</div>
+        <div class="arch-flow-name" style="color:var(--amber)">container_debug</div>
+        <div class="arch-flow-role">HUD · Performance DAT</div>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <span class="callout-icon">💡</span>
+      <div class="callout-body">
+        <div class="callout-tag">Naming convention</div>
+        <p class="callout-text">
+          Create each container by pressing <kbd>Tab</kbd>, searching <strong>Container</strong>,
+          and double-clicking to place it. Rename by pressing <kbd>F2</kbd> on the node or editing
+          the <em>Name</em> field in the operator's parameters. Use the names below exactly —
+          the Python scripts in <code>touchdesigner/scripts/</code> reference operators by these
+          paths (e.g. <code>op('container_signal/null_bands')</code>).
+        </p>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         CONTAINER 1 — container_osc
+    ════════════════════════════════════ -->
+    <span class="section-anchor" id="ch-net-osc"></span>
+    <h3 class="section-title">Container 1 — <code style="color:hsl(145,60%,65%);font-size:inherit">container_osc</code></h3>
+    <p>
+      Receives all incoming OSC messages from the Python backend and fires a Python callback
+      each time a new packet arrives. Nothing else in the network should touch the raw OSCIn
+      CHOP directly — always reference <code>container_osc/null_osc_out</code> from other containers.
+    </p>
+
+    <div class="container-card">
+      <div class="container-card-header">
+        <div class="container-card-icon" style="background:hsl(145 60% 48%/0.12);border:1px solid hsl(145 60% 48%/0.3)">📡</div>
+        <div class="container-card-meta">
+          <div class="container-card-name"><code>container_osc</code></div>
+          <div class="container-card-desc">OSC input layer — receives all Sentio messages from the backend on <code>127.0.0.1:7000</code>, addresses <code>/sentio/*</code></div>
+          <div class="container-card-badges">
+            <span class="container-badge comp">Container COMP</span>
+            <span class="container-badge wires">Green wires out</span>
+          </div>
+        </div>
+      </div>
+      <div class="op-list">
+        <div class="op-row">
+          <span class="op-row-badge chop">CHOP</span>
+          <div class="op-row-name">oscin1</div>
+          <div class="op-row-desc">OSCIn CHOP — the raw receiver. Set <strong>Port</strong> to <code>7000</code>, <strong>Address Scope</strong> to <code>/sentio/*</code>. One row per incoming channel.</div>
+          <div class="op-row-tag">OSCIn CHOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge dat">DAT</span>
+          <div class="op-row-name">execute_osc</div>
+          <div class="op-row-desc">DAT Execute — Python callback. Set <strong>Dat</strong> input to <code>oscin1</code>. Enable <strong>Row/Column Change</strong>. Contains the <code>onReceiveOSC</code> function (see Ch. 05).</div>
+          <div class="op-row-tag">DAT Execute</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge dat">DAT</span>
+          <div class="op-row-name">chop_to_dat1</div>
+          <div class="op-row-desc">CHOP to DAT — converts the CHOP channels to a readable table. Useful for debugging: open the viewer to see live channel values as a spreadsheet.</div>
+          <div class="op-row-tag">CHOP to DAT</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge chop">CHOP</span>
+          <div class="op-row-name">null_osc_out</div>
+          <div class="op-row-desc">Null CHOP wired from <code>oscin1</code> — the <strong>official output reference</strong> of this container. All other containers pull from here, never from <code>oscin1</code> directly, so you can swap the input source without breaking the rest of the network.</div>
+          <div class="op-row-tag">Null CHOP · <strong>Output</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         CONTAINER 2 — container_signal
+    ════════════════════════════════════ -->
+    <span class="section-anchor" id="ch-net-signal"></span>
+    <h3 class="section-title">Container 2 — <code style="color:var(--cyan);font-size:inherit">container_signal</code></h3>
+    <p>
+      Smooths, scales, and maps the raw EEG band values into visual parameters. The emotion
+      mapping script writes to three Constant CHOPs here; TOP expressions in
+      <code>container_visual</code> read from them every frame.
+    </p>
+
+    <div class="container-card">
+      <div class="container-card-header">
+        <div class="container-card-icon" style="background:hsl(187 80% 55%/0.10);border:1px solid hsl(187 80% 55%/0.3)">⚡</div>
+        <div class="container-card-meta">
+          <div class="container-card-name"><code>container_signal</code></div>
+          <div class="container-card-desc">EEG signal processing — smoothing, normalisation, and emotion-to-parameter mapping. All visual operators read parameters from this container's Null CHOPs.</div>
+          <div class="container-card-badges">
+            <span class="container-badge comp">Container COMP</span>
+            <span class="container-badge wires">Green wires in &amp; out</span>
+          </div>
+        </div>
+      </div>
+      <div class="op-list">
+        <div class="op-row">
+          <span class="op-row-badge chop">CHOP</span>
+          <div class="op-row-name">null_osc_in</div>
+          <div class="op-row-desc">Null CHOP — receives from <code>container_osc/null_osc_out</code>. Drag a wire from that node into this one to link the two containers. Acts as the input gate of this container.</div>
+          <div class="op-row-tag">Null CHOP · <strong>Input</strong></div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge chop">CHOP</span>
+          <div class="op-row-name">filter1</div>
+          <div class="op-row-desc">Filter CHOP — Gaussian low-pass, width <code>0.3s</code>. Wired from <code>null_osc_in</code>. Removes high-frequency jitter from all five EEG band channels simultaneously.</div>
+          <div class="op-row-tag">Filter CHOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge chop">CHOP</span>
+          <div class="op-row-name">math1</div>
+          <div class="op-row-desc">Math CHOP — wired from <code>filter1</code>. Set <strong>Range</strong> tab: From <code>0 → 1</code>, To <code>0 → 1</code>. Clamps any out-of-range values. You can also apply per-channel gain here if alpha values tend to be very low.</div>
+          <div class="op-row-tag">Math CHOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge chop">CHOP</span>
+          <div class="op-row-name">null_bands</div>
+          <div class="op-row-desc">Null CHOP wired from <code>math1</code> — exposes the smoothed α / β / θ / γ / δ channels. <strong>Reference point for all visual operators</strong>: use <code>op('container_signal/null_bands')['alpha']</code> etc. in TOP expressions.</div>
+          <div class="op-row-tag">Null CHOP · <strong>Output A</strong></div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge chop">CHOP</span>
+          <div class="op-row-name">constant_hue</div>
+          <div class="op-row-desc">Constant CHOP — single channel <code>hue</code>, default <code>200</code>. Written to by <code>execute_osc</code> in <code>container_osc</code> via Python (<code>op('container_signal/constant_hue').par.value0 = …</code>).</div>
+          <div class="op-row-tag">Constant CHOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge chop">CHOP</span>
+          <div class="op-row-name">constant_flow</div>
+          <div class="op-row-desc">Constant CHOP — single channel <code>flow</code>, default <code>0.15</code>. Controls the Noise TOP's Translate Z animation speed (flow rate of the generative texture).</div>
+          <div class="op-row-tag">Constant CHOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge chop">CHOP</span>
+          <div class="op-row-name">constant_dist</div>
+          <div class="op-row-desc">Constant CHOP — single channel <code>dist</code>, default <code>0.10</code>. Controls the Noise TOP Roughness / distortion amount. High values → chaotic fragmented forms.</div>
+          <div class="op-row-tag">Constant CHOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge chop">CHOP</span>
+          <div class="op-row-name">null_params</div>
+          <div class="op-row-desc">Null CHOP — merges <code>constant_hue</code>, <code>constant_flow</code>, and <code>constant_dist</code> using a <strong>Merge CHOP</strong> before this Null. Exposes all three visual parameters as a single convenient reference point.</div>
+          <div class="op-row-tag">Null CHOP · <strong>Output B</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         CONTAINER 3 — container_visual
+    ════════════════════════════════════ -->
+    <span class="section-anchor" id="ch-net-visual"></span>
+    <h3 class="section-title">Container 3 — <code style="color:var(--purple);font-size:inherit">container_visual</code></h3>
+    <p>
+      The visual engine. Builds the instanced capsule geometry (Polyhop-style) driven by the
+      noise field, composites it with a feedback trail, colour-grades by emotion, and outputs
+      a single texture to <code>container_projection</code>.
+    </p>
+    <p style="margin-top:8px;font-size:13px;color:var(--muted)">
+      The container holds two alternative geometry pipelines:
+      <strong>Option A</strong> uses a Particle SOP + Geometry COMP (classic, compatible with all TD versions);
+      <strong>Option B</strong> uses a POP Network COMP + Render Simple TOP (TD 2025 GPU instancing — recommended).
+      Build one; leave the other commented out or disabled.
+    </p>
+
+    <div class="container-card">
+      <div class="container-card-header">
+        <div class="container-card-icon" style="background:hsl(262 60% 62%/0.10);border:1px solid hsl(262 60% 62%/0.3)">🎨</div>
+        <div class="container-card-meta">
+          <div class="container-card-name"><code>container_visual</code></div>
+          <div class="container-card-desc">Generative visual engine — Noise flow field → instanced geometry → feedback trails → colour grade → bloom → Out TOP</div>
+          <div class="container-card-badges">
+            <span class="container-badge comp">Container COMP</span>
+            <span class="container-badge wires">Purple wires out (TOP texture)</span>
+          </div>
+        </div>
+      </div>
+      <div class="op-list">
+
+        <!-- Flow field -->
+        <div class="op-row" style="background:hsl(262 60% 62%/0.03)">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">noise1</div>
+          <div class="op-row-desc">Noise TOP — <strong>Sparse</strong> type, Resolution <code>1280×1280</code>. Roughness → <code>op('container_signal/null_bands')['beta']</code>. Translate Z → <code>absTime.seconds * op('container_signal/constant_flow').par.value0</code>. This is the flow field that drives all motion.</div>
+          <div class="op-row-tag">Flow field</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">remap1</div>
+          <div class="op-row-desc">Remap TOP — wired from <code>noise1</code>. Remaps the 0→1 noise output through a ramp so colours fill the full dynamic range. In Range <code>0–1</code> → Out Range <code>0–1</code> with a custom curve for the desired colour spread.</div>
+          <div class="op-row-tag">Remap TOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">blur1</div>
+          <div class="op-row-desc">Blur TOP — wired from <code>remap1</code>. Size <code>4–8 px</code>. Softens the noise texture so rendered geometry edges blend smoothly rather than aliasing against a sharp field.</div>
+          <div class="op-row-tag">Blur TOP</div>
+        </div>
+
+        <!-- Geometry — Option B (TD 2025) -->
+        <div class="op-row" style="background:hsl(38 92% 58%/0.04)">
+          <span class="op-row-badge comp">COMP</span>
+          <div class="op-row-name">popnet1 <span style="font-size:9px;color:var(--amber);margin-left:6px">★ TD 2025</span></div>
+          <div class="op-row-desc">POP Network COMP — <strong>Option B (recommended)</strong>. Double-click to enter the POP network. Contains the GPU particle simulation. See operators below.</div>
+          <div class="op-row-tag">POP Network</div>
+        </div>
+      </div>
+
+      <!-- Sub-list: inside popnet1 -->
+      <div class="op-sublist">
+        <div class="op-sublist-label">INSIDE popnet1 — POP Network COMP</div>
+        <div class="op-sub-row">
+          <span class="op-row-badge chop" style="font-size:8px">POP</span>
+          <div class="op-row-name">popsource1</div>
+          <div class="op-row-desc">POP Source — Birth Rate <code>450</code>, Constant source. Spawns the capsule instances. Set <strong>Constant Birth Rate</strong> to keep 450 alive at all times.</div>
+        </div>
+        <div class="op-sub-row">
+          <span class="op-row-badge chop" style="font-size:8px">POP</span>
+          <div class="op-row-name">popnoise1</div>
+          <div class="op-row-desc">POP Noise — adds per-particle position noise driven by <code>op('container_signal/null_bands')['alpha']</code> on the Amplitude parameter. Creates the organic drifting motion.</div>
+        </div>
+        <div class="op-sub-row">
+          <span class="op-row-badge chop" style="font-size:8px">POP</span>
+          <div class="op-row-name">popcolor1</div>
+          <div class="op-row-desc">POP Color — uses a Ramp lookup (hue A → hue B) where hue A = <code>op('container_signal/constant_hue').par.value0</code>. Each particle gets its colour from its position along the gradient.</div>
+        </div>
+        <div class="op-sub-row">
+          <span class="op-row-badge sop" style="font-size:8px">SOP</span>
+          <div class="op-row-name">capsule_shape</div>
+          <div class="op-row-desc">Capsule SOP (or Tube SOP with end caps) — the instanced shape primitive. Radius <code>0.02</code>, Height <code>0.12</code>. This single geometry is replicated for all 450 instances.</div>
+        </div>
+      </div>
+
+      <div class="op-list">
+        <div class="op-row">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">renderSimple1 <span style="font-size:9px;color:var(--amber);margin-left:6px">★ TD 2025</span></div>
+          <div class="op-row-desc">Render Simple TOP — set <strong>Geometry</strong> to <code>popnet1</code>. No Camera COMP or Light COMP needed. Resolution matches the project (<code>1280×720</code> or projector native). Background colour <code>0,0,0,0</code> (transparent).</div>
+          <div class="op-row-tag">Render Simple TOP</div>
+        </div>
+
+        <!-- Option A divider -->
+        <div class="op-row" style="background:hsl(210 80% 55%/0.04)">
+          <span class="op-row-badge comp">COMP</span>
+          <div class="op-row-name">geo1 <span style="font-size:9px;color:hsl(210,80%,65%);margin-left:6px">Option A</span></div>
+          <div class="op-row-desc">Geometry COMP — <strong>Option A (classic TD)</strong>. Contains a Particle SOP + Capsule SOP + Phong MAT. Wire a Render TOP (with Camera COMP + Light COMP siblings) to render it. Use this if your TD build is older than 2025.</div>
+          <div class="op-row-tag">Geometry COMP</div>
+        </div>
+
+        <!-- Post-processing -->
+        <div class="op-row" style="background:hsl(262 60% 62%/0.03)">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">composite1</div>
+          <div class="op-row-desc">Composite TOP — Input 0: rendered geometry (<code>renderSimple1</code> output). Input 1: feedback trail (<code>feedback1</code> output). Blend mode <strong>Screen</strong>. This composites the fresh geometry over the ghosted trail.</div>
+          <div class="op-row-tag">Composite TOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">feedback1</div>
+          <div class="op-row-desc">Feedback TOP — Target TOP set to <code>composite1</code>. Feedback value: <code>1.0 - op('container_signal/null_bands')['theta'] * 0.3</code>. High theta shortens trails (meditative state); low theta creates long lingering glows.</div>
+          <div class="op-row-tag">Feedback TOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">level_fade</div>
+          <div class="op-row-desc">Level TOP — wired after <code>feedback1</code>. Brightness <code>0.985</code>. Gradually dims old feedback frames so they don't accumulate to white over time.</div>
+          <div class="op-row-tag">Level TOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">level1</div>
+          <div class="op-row-desc">Level TOP — wired from <code>composite1</code> output. Brightness expression: <code>op('container_signal/null_bands')['delta'] * 0.6 + 0.3</code>. Delta band brightens the image — high delta (deep sleep) creates a luminous glow.</div>
+          <div class="op-row-tag">Level TOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">hsvadjust1</div>
+          <div class="op-row-desc">HSV Adjust TOP — Hue Offset: <code>op('container_signal/constant_hue').par.value0 / 360.0</code>. Saturation: <code>op('container_signal/null_bands')['gamma'] * 0.5 + 0.6</code>. Rotates all colours in the frame according to emotion-driven hue.</div>
+          <div class="op-row-tag">HSV Adjust TOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">bloom1</div>
+          <div class="op-row-desc">Bloom TOP — Threshold <code>0.55</code>, Blur Radius <code>12</code>, Blend <code>0.45</code>. Adds the characteristic soft glow around bright capsule forms. Threshold prevents the effect bleeding into dark areas of the frame.</div>
+          <div class="op-row-tag">Bloom TOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">out1</div>
+          <div class="op-row-desc">Out TOP — wired from <code>bloom1</code>. The <strong>official output</strong> of this container. <code>container_projection</code> reads from <code>container_visual/out1</code> as its input texture.</div>
+          <div class="op-row-tag">Out TOP · <strong>Output</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         CONTAINER 4 — container_projection
+    ════════════════════════════════════ -->
+    <span class="section-anchor" id="ch-net-projection"></span>
+    <h3 class="section-title">Container 4 — <code style="color:var(--magenta);font-size:inherit">container_projection</code></h3>
+    <p>
+      Takes the finished texture from <code>container_visual</code> and projection-maps it
+      onto the dress-form mannequin via Stoner COMP, then outputs the result fullscreen to
+      the projector via a Window COMP.
+    </p>
+
+    <div class="container-card">
+      <div class="container-card-header">
+        <div class="container-card-icon" style="background:hsl(308 60% 60%/0.10);border:1px solid hsl(308 60% 60%/0.3)">📽</div>
+        <div class="container-card-meta">
+          <div class="container-card-name"><code>container_projection</code></div>
+          <div class="container-card-desc">Projection mapping output — warps the visual texture to the mannequin outline and sends it fullscreen to the physical projector.</div>
+          <div class="container-card-badges">
+            <span class="container-badge comp">Container COMP</span>
+            <span class="container-badge wires">Purple wires in · Window COMP out</span>
+          </div>
+        </div>
+      </div>
+      <div class="op-list">
+        <div class="op-row">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">null_visual_in</div>
+          <div class="op-row-desc">Null TOP — receives from <code>container_visual/out1</code>. The input gate of this container. Wire it directly to <code>stoner1</code>.</div>
+          <div class="op-row-tag">Null TOP · <strong>Input</strong></div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge comp">COMP</span>
+          <div class="op-row-name">stoner1</div>
+          <div class="op-row-desc">Stoner COMP — the projection mapping tool. Texture input: <code>null_visual_in</code>. Double-click to enter Edit Points mode and drag the corner handles to match the dress form's torso outline. Calibration is saved in the <code>.toe</code> file. See Ch. 07 for full setup steps.</div>
+          <div class="op-row-tag">Stoner COMP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge comp">COMP</span>
+          <div class="op-row-name">window1</div>
+          <div class="op-row-desc">Window COMP — wired from <code>stoner1</code>. Set <strong>Display</strong> to your projector's display index (usually <code>Display 2</code>). Enable <strong>Fullscreen</strong>. Click <em>Open as Separate Window</em> when the projector is connected. Resolution must match the projector's native resolution.</div>
+          <div class="op-row-tag">Window COMP · <strong>Output</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         CONTAINER 5 — container_debug
+    ════════════════════════════════════ -->
+    <span class="section-anchor" id="ch-net-debug"></span>
+    <h3 class="section-title">Container 5 — <code style="color:var(--amber);font-size:inherit">container_debug</code> <span style="font-size:12px;color:var(--muted);font-weight:400">(optional)</span></h3>
+    <p>
+      A non-destructive monitoring layer. None of the other containers depend on it.
+      Keep it bypassed during performance; enable it during development and setup.
+    </p>
+
+    <div class="container-card">
+      <div class="container-card-header">
+        <div class="container-card-icon" style="background:hsl(38 92% 58%/0.08);border:1px solid hsl(38 92% 40%/0.4)">🔍</div>
+        <div class="container-card-meta">
+          <div class="container-card-name"><code>container_debug</code></div>
+          <div class="container-card-desc">Live HUD overlay and performance monitoring. Bypass (<kbd>B</kbd>) this container before projecting to avoid UI elements showing on the projection surface.</div>
+          <div class="container-card-badges">
+            <span class="container-badge comp">Container COMP</span>
+            <span class="container-badge wires">No live output wires</span>
+          </div>
+        </div>
+      </div>
+      <div class="op-list">
+        <div class="op-row">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">text_emotion</div>
+          <div class="op-row-desc">Text TOP — displays the current emotion string. Text expression: <code>op('container_osc/oscin1')['emotion']</code>. Font <code>IBM Plex Mono</code>, size <code>24</code>, colour white.</div>
+          <div class="op-row-tag">Text TOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">text_bands</div>
+          <div class="op-row-desc">Text TOP — displays live α/β/θ/γ/δ values. Text expression (multi-line Python): reads from <code>container_signal/null_bands</code> and formats as a string. Useful for verifying the headband is sending data.</div>
+          <div class="op-row-tag">Text TOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge top">TOP</span>
+          <div class="op-row-name">composite_hud</div>
+          <div class="op-row-desc">Composite TOP — overlays <code>text_emotion</code> and <code>text_bands</code> over a copy of the visual (<code>container_visual/out1</code>). Set blend to <strong>Over</strong>. View this during setup to confirm signal → visual is working.</div>
+          <div class="op-row-tag">Composite TOP</div>
+        </div>
+        <div class="op-row">
+          <span class="op-row-badge dat">DAT</span>
+          <div class="op-row-name">performance1</div>
+          <div class="op-row-desc">Performance Monitor DAT — shows per-operator cook time and FPS. Right-click → <em>Cook Performance</em> to enable. Essential for diagnosing slow operators when the frame rate drops below 30 FPS.</div>
+          <div class="op-row-tag">Performance Monitor DAT</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick-reference summary table -->
+    <h3 class="section-title">Container Summary Table</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Container</th><th>Role</th><th>Key operators inside</th><th>Output reference</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>container_osc</code></td>
+            <td>OSC input</td>
+            <td>OSCIn CHOP, DAT Execute, CHOP to DAT</td>
+            <td><code>/null_osc_out</code> (CHOP)</td>
+          </tr>
+          <tr>
+            <td><code>container_signal</code></td>
+            <td>Signal processing</td>
+            <td>Filter CHOP, Math CHOP, 3× Constant CHOP, Merge CHOP</td>
+            <td><code>/null_bands</code> (CHOP), <code>/null_params</code> (CHOP)</td>
+          </tr>
+          <tr>
+            <td><code>container_visual</code></td>
+            <td>Visual generation</td>
+            <td>Noise TOP, POP Network (or Geo COMP), Render Simple TOP, Composite TOP, Feedback TOP, Level TOP × 2, HSV Adjust TOP, Bloom TOP</td>
+            <td><code>/out1</code> (TOP)</td>
+          </tr>
+          <tr>
+            <td><code>container_projection</code></td>
+            <td>Projection mapping</td>
+            <td>Null TOP, Stoner COMP, Window COMP</td>
+            <td>Window COMP → projector display</td>
+          </tr>
+          <tr>
+            <td><code>container_debug</code></td>
+            <td>Monitoring (optional)</td>
+            <td>Text TOP × 2, Composite TOP, Performance Monitor DAT</td>
+            <td>Viewer only — no live wires out</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </section>
+
+  <!-- ══════════════════════════════════════════
+       CHAPTER 4 (was Ch3)
   ══════════════════════════════════════════ -->
   <span class="section-anchor" id="ch3"></span>
   <section class="chapter">
     <div class="chapter-header">
-      <span class="chapter-num">CHAPTER 03</span>
+      <span class="chapter-num">CHAPTER 04</span>
       <h2 class="chapter-title">Receiving Data via OSC</h2>
     </div>
     <hr class="chapter-rule">
@@ -1313,7 +1956,7 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
   <span class="section-anchor" id="ch4"></span>
   <section class="chapter">
     <div class="chapter-header">
-      <span class="chapter-num">CHAPTER 04</span>
+      <span class="chapter-num">CHAPTER 05</span>
       <h2 class="chapter-title">Building the Processing Network</h2>
     </div>
     <hr class="chapter-rule">
@@ -1445,7 +2088,7 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
   <span class="section-anchor" id="ch5"></span>
   <section class="chapter">
     <div class="chapter-header">
-      <span class="chapter-num">CHAPTER 05</span>
+      <span class="chapter-num">CHAPTER 06</span>
       <h2 class="chapter-title">Creating the Fluid Generative Visual</h2>
     </div>
     <hr class="chapter-rule">
@@ -1687,7 +2330,7 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
   <span class="section-anchor" id="ch6"></span>
   <section class="chapter">
     <div class="chapter-header">
-      <span class="chapter-num">CHAPTER 06</span>
+      <span class="chapter-num">CHAPTER 07</span>
       <h2 class="chapter-title">Projection Mapping onto the Mannequin</h2>
     </div>
     <hr class="chapter-rule">
@@ -1922,7 +2565,7 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
   <span class="section-anchor" id="ch7"></span>
   <section class="chapter">
     <div class="chapter-header">
-      <span class="chapter-num">CHAPTER 07</span>
+      <span class="chapter-num">CHAPTER 08</span>
       <h2 class="chapter-title">Troubleshooting Quick Reference</h2>
     </div>
     <hr class="chapter-rule">
@@ -2012,7 +2655,7 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
   <span class="section-anchor" id="ch8"></span>
   <section class="chapter">
     <div class="chapter-header">
-      <span class="chapter-num">CHAPTER 08</span>
+      <span class="chapter-num">CHAPTER 09</span>
       <h2 class="chapter-title">Folder Structure</h2>
     </div>
     <hr class="chapter-rule">
@@ -2157,7 +2800,7 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
   <span class="section-anchor" id="ch9"></span>
   <section class="chapter">
     <div class="chapter-header">
-      <span class="chapter-num">CHAPTER 09</span>
+      <span class="chapter-num">CHAPTER 10</span>
       <h2 class="chapter-title">Connecting Operators to Python Scripts</h2>
     </div>
     <hr class="chapter-rule">
