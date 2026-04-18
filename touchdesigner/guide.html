@@ -1575,13 +1575,74 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
           <div class="step-title">Add a <strong>DAT Execute</strong> — rename it <code>execute_osc</code></div>
           <div class="step-desc">
             <kbd>Tab</kbd> → type <code>DAT Execute</code> → place it below <code>oscin1</code>.<br>
-            Open parameters:
-            <br>• <strong>DAT</strong> → drag <code>oscin1</code> into this field (or type <code>oscin1</code>)
-            <br>• Enable <strong>Row/Column Change</strong> → <code>On</code>
-            <br>• Double-click the DAT Execute node to open the script editor. Paste the <code>onReceiveOSC</code> callback from Chapter 05.
+            Open parameters (<kbd>P</kbd>) and set <strong>each field exactly</strong> as follows:
+            <br>• <strong>DATs</strong> → type <code>oscin1</code> (or drag the node into the field). This tells the DAT Execute which table to watch.
+            <br>• <strong>Table Change</strong> → <code>Off</code> — fires when the table structure changes (columns added/removed); not needed for OSC.
+            <br>• <strong>Row Change</strong> → <code>On</code> — fires each time a new OSC message arrives and updates a row. This is the correct trigger for the emotion callback.
+            <br>• <strong>Column Change</strong> → <code>Off</code>
+            <br>• <strong>Execute</strong> → <code>Off</code> — <strong>critical:</strong> leave this Off. If it is set to <em>Start of Frame</em> the script runs 60× per second regardless of incoming data, wasting CPU.
+            <br><br>Your parameters panel should look like this when correctly set:
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-family:var(--font-mono);font-size:11px">
+              <span style="padding:3px 10px;border-radius:6px;background:hsl(145 60% 48%/0.1);border:1px solid hsl(145 60% 48%/0.3);color:hsl(145,60%,65%)">Active On</span>
+              <span style="padding:3px 10px;border-radius:6px;background:hsl(145 60% 48%/0.1);border:1px solid hsl(145 60% 48%/0.3);color:hsl(145,60%,65%)">DATs: oscin1</span>
+              <span style="padding:3px 10px;border-radius:6px;background:hsl(145 60% 48%/0.1);border:1px solid hsl(145 60% 48%/0.3);color:hsl(145,60%,65%)">Row Change: On</span>
+              <span style="padding:3px 10px;border-radius:6px;background:hsl(0 72% 58%/0.1);border:1px solid hsl(0 72% 40%/0.4);color:hsl(0,72%,65%)">Table Change: Off</span>
+              <span style="padding:3px 10px;border-radius:6px;background:hsl(0 72% 58%/0.1);border:1px solid hsl(0 72% 40%/0.4);color:hsl(0,72%,65%)">Execute: Off</span>
+            </div>
+            <br>Then click <strong>Edit…</strong> to open the script editor and paste the callback below.
           </div>
         </div>
       </div>
+
+      <!-- Inline script card so user doesn't have to jump to Ch.05 -->
+      <div class="step">
+        <div class="step-num">★</div>
+        <div class="step-body">
+          <div class="step-title">Paste this script into <code>execute_osc</code></div>
+          <div class="step-desc">Click <strong>Edit…</strong> on the DAT Execute, select all existing text, and replace with:</div>
+        </div>
+      </div>
+
+      <div class="code-block" style="margin:0 0 8px">
+        <div class="code-header">
+          <span class="code-lang">Python — execute_osc (DAT Execute · TD 2025 signature)</span>
+          <div class="code-dots"><span></span><span></span><span></span></div>
+        </div>
+        <pre><span class="cmt"># TD 2025 onReceiveOSC signature</span>
+<span class="cmt"># Fires on Row Change — once per incoming OSC packet</span>
+<span class="kw">def</span> <span class="fn">onReceiveOSC</span>(dat, rowIndex, message, bytes, timeStamp, address, args, peer):
+    emotion = <span class="fn">str</span>(op(<span class="str">'oscin1'</span>)[<span class="str">'emotion'</span>])
+
+    palettes = {
+        <span class="str">'calm'</span>:     {<span class="str">'hue'</span>: <span class="num">200</span>, <span class="str">'flow'</span>: <span class="num">0.15</span>, <span class="str">'dist'</span>: <span class="num">0.10</span>},
+        <span class="str">'focused'</span>:  {<span class="str">'hue'</span>: <span class="num">42</span>,  <span class="str">'flow'</span>: <span class="num">0.55</span>, <span class="str">'dist'</span>: <span class="num">0.30</span>},
+        <span class="str">'stressed'</span>: {<span class="str">'hue'</span>: <span class="num">0</span>,   <span class="str">'flow'</span>: <span class="num">0.88</span>, <span class="str">'dist'</span>: <span class="num">0.70</span>},
+        <span class="str">'relaxed'</span>:  {<span class="str">'hue'</span>: <span class="num">175</span>, <span class="str">'flow'</span>: <span class="num">0.12</span>, <span class="str">'dist'</span>: <span class="num">0.06</span>},
+        <span class="str">'excited'</span>:  {<span class="str">'hue'</span>: <span class="num">285</span>, <span class="str">'flow'</span>: <span class="num">0.75</span>, <span class="str">'dist'</span>: <span class="num">0.55</span>},
+    }
+
+    p = palettes.get(emotion, palettes[<span class="str">'calm'</span>])
+
+    <span class="cmt"># Write to the Constant CHOPs in container_signal</span>
+    op(<span class="str">'../container_signal/constant_hue'</span>).par.value0  = p[<span class="str">'hue'</span>]
+    op(<span class="str">'../container_signal/constant_flow'</span>).par.value0 = p[<span class="str">'flow'</span>]
+    op(<span class="str">'../container_signal/constant_dist'</span>).par.value0 = p[<span class="str">'dist'</span>]</pre>
+      </div>
+
+      <div class="callout danger" style="margin:0 0 20px">
+        <span class="callout-icon">🚨</span>
+        <div class="callout-body">
+          <div class="callout-tag">Common mistake — Execute set to "Start of Frame"</div>
+          <p class="callout-text">
+            When you first place a DAT Execute, the <strong>Execute</strong> parameter defaults to
+            <em>Start of Frame</em>. This causes the callback to run every single frame (60×/sec),
+            meaning it constantly overwrites the Constant CHOPs even when no OSC data has arrived.
+            Always set <strong>Execute → Off</strong> and <strong>Row Change → On</strong> so the
+            script only fires when a real OSC packet is received.
+          </p>
+        </div>
+      </div>
+
       <div class="step">
         <div class="step-num">5</div>
         <div class="step-body">
@@ -1624,7 +1685,7 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
         <div class="op-row">
           <span class="op-row-badge dat">DAT</span>
           <div class="op-row-name">execute_osc</div>
-          <div class="op-row-desc">DAT Execute — Python callback. Set <strong>Dat</strong> input to <code>oscin1</code>. Enable <strong>Row/Column Change</strong>. Contains the <code>onReceiveOSC</code> function (see Ch. 05).</div>
+          <div class="op-row-desc">DAT Execute — Python callback. Set <strong>DATs</strong> to <code>oscin1</code>. <strong>Row Change → On</strong>, <strong>Execute → Off</strong> (not Start of Frame). Contains the <code>onReceiveOSC</code> callback that writes to Constant CHOPs in <code>container_signal</code>.</div>
           <div class="op-row-tag">DAT Execute</div>
         </div>
         <div class="op-row">
