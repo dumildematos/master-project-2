@@ -45,6 +45,7 @@ const BrainContext = createContext<BrainContextType | undefined>(undefined);
 
 const MAX_POINTS = 120;
 const brainStreamUrl = import.meta.env.VITE_BRAIN_STREAM_URL;
+const WS_RETRY_DELAY_MS = 2000;
 
 const takeRecentValues = (value: unknown): number[] => {
   if (!Array.isArray(value)) {
@@ -84,35 +85,6 @@ const toEmotionLabel = (value: unknown) => {
 const buildEegPoint = ({ alpha, beta, gamma, delta, theta }: Pick<BrainData, "alpha" | "beta" | "gamma" | "delta" | "theta">) =>
   alpha * 28 + beta * 34 + gamma * 42 + delta * 18 + theta * 22;
 
-const fallbackWave = (amplitude: number, frequency: number, phase: number) =>
-  Array.from({ length: MAX_POINTS }, (_, index) => Math.sin(index * frequency + phase) * amplitude);
-
-const createFallbackBrainData = (previous: BrainData | null): BrainData => {
-  const alpha = 0.6 + Math.random() * 0.3;
-  const beta = 0.3 + Math.random() * 0.3;
-  const gamma = 0.2 + Math.random() * 0.2;
-  const delta = Math.random() * 0.1;
-  const theta = Math.random() * 0.2;
-  const eegPoint = buildEegPoint({ alpha, beta, gamma, delta, theta });
-
-  return {
-    alpha,
-    beta,
-    confidence: 60 + Math.random() * 30,
-    gamma,
-    delta,
-    theta,
-    patternSeed: previous?.patternSeed ?? Math.floor(Math.random() * 100000),
-    signal_quality: 90 + Math.random() * 10,
-    emotion: ["Calm", "Focused", "Excited", "Relaxed"][Math.floor(Math.random() * 4)],
-    timestamp: Date.now(),
-    eegData: appendPoint(previous?.eegData ?? [], eegPoint),
-    alphaWave: appendPoint(previous?.alphaWave ?? [], alpha),
-    betaWave: appendPoint(previous?.betaWave ?? [], beta),
-    gammaWave: appendPoint(previous?.gammaWave ?? [], gamma),
-    thetaWave: appendPoint(previous?.thetaWave ?? [], theta),
-  };
-};
 
 const parseNumber = (value: unknown, fallback = 0) => (typeof value === "number" ? value : fallback);
 
@@ -160,46 +132,49 @@ export const BrainProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let ws: WebSocket | null = null;
-    let interval: ReturnType<typeof setInterval> | null = null;
-
-    const startFallback = () => {
-      if (interval) {
-        return;
-      }
-
-      interval = globalThis.setInterval(() => {
-        setBrainData(createFallbackBrainData);
-      }, 100);
-    };
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
 
     if (!calibration) {
-      return () => {
-        if (interval) {
-          globalThis.clearInterval(interval);
-        }
-      };
+      // No calibration yet — clear any stale data and do nothing.
+      setBrainData(null);
+      return () => { cancelled = true; };
     }
 
-    ws = new WebSocket(brainStreamUrl);
-    ws.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data) as Record<string, unknown>;
-        setBrainData((previous) => parseBrainStreamPayload(payload, previous));
-      } catch (error) {
-        console.error("Failed to parse brain stream payload", error);
-      }
-    };
-    ws.onerror = startFallback;
-    ws.onclose = startFallback;
+    function connect() {
+      if (cancelled) return;
+
+      ws = new WebSocket(brainStreamUrl);
+
+      ws.onmessage = (event) => {
+        if (cancelled) return;
+        try {
+          const payload = JSON.parse(event.data) as Record<string, unknown>;
+          // Skip heartbeat / non-EEG control frames — same guard as useWebSocket.ts
+          if ((payload as Record<string, unknown>)?.type === "heartbeat") return;
+          setBrainData((previous) => parseBrainStreamPayload(payload, previous));
+        } catch (error) {
+          console.error("Failed to parse brain stream payload", error);
+        }
+      };
+
+      ws.onclose = () => {
+        if (cancelled) return;
+        // Clear data so the UI shows "waiting" state instead of stale values.
+        setBrainData(null);
+        // Retry the connection — do NOT pump fake data.
+        retryTimeout = setTimeout(connect, WS_RETRY_DELAY_MS);
+      };
+
+      ws.onerror = () => ws?.close();
+    }
+
+    connect();
 
     return () => {
-      if (ws) {
-        ws.close();
-      }
-
-      if (interval) {
-        globalThis.clearInterval(interval);
-      }
+      cancelled = true;
+      if (retryTimeout) clearTimeout(retryTimeout);
+      ws?.close();
     };
   }, [calibration]);
 

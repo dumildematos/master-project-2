@@ -41,11 +41,6 @@ export default function CalibrationScreen({ onComplete }: Props) {
     return () => clearInterval(id);
   }, [done, onComplete]);
 
-  /* Try real API – fire-and-forget, doesn't block the animation */
-  useEffect(() => {
-    fetch("http://localhost:8000/api/calibration/run").catch(() => null);
-  }, []);
-
   const currentStep = STEPS[stepIndex];
 
   return (
