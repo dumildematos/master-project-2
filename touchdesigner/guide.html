@@ -1050,7 +1050,9 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
 
     <div class="nav-chapter">Architecture</div>
     <a href="#ch-net" class="nav-link"><span class="nav-num">03</span> Container Architecture</a>
-    <a href="#ch-net-overview"   class="nav-link nav-sub">Overview map</a>
+    <a href="#ch-net-overview"   class="nav-link nav-sub">Overview &amp; flow</a>
+    <a href="#ch-net-howto"      class="nav-link nav-sub">Shortcuts reference</a>
+    <a href="#ch-net-root"       class="nav-link nav-sub">Create root containers</a>
     <a href="#ch-net-osc"        class="nav-link nav-sub">container_osc</a>
     <a href="#ch-net-signal"     class="nav-link nav-sub">container_signal</a>
     <a href="#ch-net-visual"     class="nav-link nav-sub">container_visual</a>
@@ -1412,6 +1414,117 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
       </div>
     </div>
 
+    <!-- ── General keyboard shortcuts box ── -->
+    <span class="section-anchor" id="ch-net-howto"></span>
+    <h3 class="section-title">Essential Shortcuts for Building the Network</h3>
+
+    <p>
+      Every operator in TouchDesigner is created the same way regardless of family.
+      Learn these six actions and you can build the entire Sentio network without touching a menu.
+    </p>
+
+    <div class="table-wrap">
+      <table class="table-plain">
+        <thead><tr><th>Action</th><th>Shortcut</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Open operator search palette</td>
+            <td><kbd>Tab</kbd></td>
+            <td>Works in any network level. Type part of the operator name to filter instantly.</td>
+          </tr>
+          <tr>
+            <td>Place the selected operator</td>
+            <td>Double-click in palette <em>or</em> <kbd>Enter</kbd></td>
+            <td>Operator is placed at your cursor position in the network.</td>
+          </tr>
+          <tr>
+            <td>Rename an operator</td>
+            <td><kbd>F2</kbd> on the node</td>
+            <td>Or click the name field in the parameter panel at bottom. Names must be lowercase with underscores, no spaces.</td>
+          </tr>
+          <tr>
+            <td>Wire two operators</td>
+            <td>Drag from output dot → input dot</td>
+            <td>Output is the right edge of a node; input is the left edge. Green = CHOP wire, purple = TOP wire.</td>
+          </tr>
+          <tr>
+            <td>Enter a Container / Network</td>
+            <td>Double-click the node</td>
+            <td>The breadcrumb bar at the top shows your current path, e.g. <code>/project1/container_osc</code>.</td>
+          </tr>
+          <tr>
+            <td>Go up one level (exit container)</td>
+            <td><kbd>U</kbd> or click the parent in the breadcrumb</td>
+            <td>Returns to the parent network without closing anything.</td>
+          </tr>
+          <tr>
+            <td>Open operator parameters</td>
+            <td><kbd>P</kbd> or click the node</td>
+            <td>Parameters panel opens at the bottom of the screen.</td>
+          </tr>
+          <tr>
+            <td>Bypass an operator</td>
+            <td><kbd>B</kbd> on the node</td>
+            <td>Data passes through without processing. Use on <code>container_debug</code> before presenting.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout tip">
+      <span class="callout-icon">💡</span>
+      <div class="callout-body">
+        <div class="callout-tag">Building order</div>
+        <p class="callout-text">
+          Create all five top-level containers at the root level first, then double-click into each one to
+          build its contents. Work in this order: <strong>osc → signal → visual → projection → debug</strong>.
+          Each container's output is used by the next, so building left-to-right means you always have
+          a valid input to wire when you need it.
+        </p>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         STEP 0 — Create the five root containers
+    ════════════════════════════════════ -->
+    <span class="section-anchor" id="ch-net-root"></span>
+    <h3 class="section-title">Step 0 — Create the Five Root Containers</h3>
+    <p>Before entering any container, lay out all five at the root network level and name them correctly.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Open <code>sentio.toe</code> and confirm you are at the root network</div>
+          <div class="step-desc">The breadcrumb bar should read <code>/project1</code>. If you are inside another operator, press <kbd>U</kbd> until you reach the root.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Press <kbd>Tab</kbd>, type <code>Container</code>, double-click <strong>Container COMP</strong></div>
+          <div class="step-desc">A grey box appears in the network. Repeat five times — one for each Sentio container. Space them out left-to-right to reflect the data flow direction.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Rename each container with <kbd>F2</kbd></div>
+          <div class="step-desc">
+            Name them exactly as listed — Python scripts use these paths:
+            <br><code>container_osc</code> &nbsp;·&nbsp; <code>container_signal</code> &nbsp;·&nbsp; <code>container_visual</code> &nbsp;·&nbsp; <code>container_projection</code> &nbsp;·&nbsp; <code>container_debug</code>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">Save the project — <kbd>Ctrl + S</kbd></div>
+          <div class="step-desc">Always save after placing the root containers so the file structure exists on disk before you start building inside them.</div>
+        </div>
+      </div>
+    </div>
+
     <!-- ════════════════════════════════════
          CONTAINER 1 — container_osc
     ════════════════════════════════════ -->
@@ -1422,6 +1535,72 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
       each time a new packet arrives. Nothing else in the network should touch the raw OSCIn
       CHOP directly — always reference <code>container_osc/null_osc_out</code> from other containers.
     </p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Double-click <code>container_osc</code> to enter it</div>
+          <div class="step-desc">Breadcrumb should read <code>/project1/container_osc</code>. You are now inside an empty network — all operators you place here live inside this container.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Add an <strong>OSCIn CHOP</strong> — rename it <code>oscin1</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → type <code>OSC In</code> → double-click <strong>OSCIn CHOP</strong>.<br>
+            Open parameters (<kbd>P</kbd>) and set:
+            <br>• <strong>Port</strong> → <code>7000</code>
+            <br>• <strong>Address Scope</strong> → <code>/sentio/*</code>
+            <br>• <strong>Active</strong> → <code>On</code>
+            <br>You should immediately see channels appear in the node viewer once the Python backend is running.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>CHOP to DAT</strong> — rename it <code>chop_to_dat1</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → type <code>CHOP to DAT</code> → place it to the right of <code>oscin1</code>.<br>
+            Wire: <code>oscin1</code> output → <code>chop_to_dat1</code> input.<br>
+            Open parameters → <strong>DAT Type</strong>: <code>Channel per Row</code>. This gives a live table of channel names and values for debugging.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>DAT Execute</strong> — rename it <code>execute_osc</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → type <code>DAT Execute</code> → place it below <code>oscin1</code>.<br>
+            Open parameters:
+            <br>• <strong>DAT</strong> → drag <code>oscin1</code> into this field (or type <code>oscin1</code>)
+            <br>• Enable <strong>Row/Column Change</strong> → <code>On</code>
+            <br>• Double-click the DAT Execute node to open the script editor. Paste the <code>onReceiveOSC</code> callback from Chapter 05.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Null CHOP</strong> — rename it <code>null_osc_out</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → type <code>Null</code> → place it to the far right of the network.<br>
+            Wire: <code>oscin1</code> output → <code>null_osc_out</code> input.<br>
+            This is the <strong>output reference</strong> for this container — all other containers wire from here, not from <code>oscin1</code> directly.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <div class="step-title">Press <kbd>U</kbd> to go back to the root network</div>
+          <div class="step-desc">You should see <code>container_osc</code> in the root. Its viewer will show the Null CHOP output — a small waveform or number strip — confirming data is flowing.</div>
+        </div>
+      </div>
+    </div>
 
     <div class="container-card">
       <div class="container-card-header">
@@ -1473,6 +1652,85 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
       mapping script writes to three Constant CHOPs here; TOP expressions in
       <code>container_visual</code> read from them every frame.
     </p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Double-click <code>container_signal</code> to enter it</div>
+          <div class="step-desc">Breadcrumb: <code>/project1/container_signal</code>. You are in an empty network.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Null CHOP</strong> — rename it <code>null_osc_in</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Null</code> → place on the far left.<br>
+            This is the <strong>input gate</strong>. To wire it from outside:
+            press <kbd>U</kbd> to return to root, then drag a wire from <code>container_osc/null_osc_out</code> into <code>container_signal</code>'s input port. Re-enter the container — <code>null_osc_in</code> will now show live EEG channels.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Filter CHOP</strong> — rename it <code>filter1</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Filter</code> → place to the right of <code>null_osc_in</code>. Wire: <code>null_osc_in</code> → <code>filter1</code>.<br>
+            Parameters: <strong>Filter Type</strong> → <code>Gaussian</code> · <strong>Filter Width</strong> → <code>0.3</code> (seconds) · <strong>Extend Left/Right</strong> → <code>Hold</code>.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Math CHOP</strong> — rename it <code>math1</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Math</code> → place after <code>filter1</code>. Wire: <code>filter1</code> → <code>math1</code>.<br>
+            Parameters: open the <strong>Range</strong> tab → From <code>0 to 1</code>, To <code>0 to 1</code>. This clamps any values that stray outside the expected 0–1 band-power range.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Null CHOP</strong> — rename it <code>null_bands</code></div>
+          <div class="step-desc">
+            Wire: <code>math1</code> → <code>null_bands</code>. This is <strong>Output A</strong> — all visual operators reference smoothed EEG bands from here using <code>op('container_signal/null_bands')['alpha']</code> etc.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <div class="step-title">Add three <strong>Constant CHOPs</strong> — name them <code>constant_hue</code>, <code>constant_flow</code>, <code>constant_dist</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Constant</code> → place three below the main chain, side by side.<br>
+            For each: open parameters → <strong>Channel 0 Name</strong> → type <code>hue</code> / <code>flow</code> / <code>dist</code>.<br>
+            Default values: <code>constant_hue</code> → <code>200</code> · <code>constant_flow</code> → <code>0.15</code> · <code>constant_dist</code> → <code>0.10</code>.<br>
+            These are written to in real time by the DAT Execute callback when an emotion packet arrives.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">7</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Merge CHOP</strong>, then a <strong>Null CHOP</strong> — rename the Null <code>null_params</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Merge</code> → wire all three Constant CHOPs into the Merge CHOP inputs.<br>
+            Then wire: <code>Merge</code> → <code>null_params</code>. This is <strong>Output B</strong> — exposes hue, flow, and dist as a single CHOP for convenience.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">8</div>
+        <div class="step-body">
+          <div class="step-title">Press <kbd>U</kbd> to return to the root</div>
+          <div class="step-desc">The <code>container_signal</code> viewer should now show the smoothed band channels. If it shows nothing, confirm the wire from <code>container_osc/null_osc_out</code> is connected to <code>container_signal</code>'s input.</div>
+        </div>
+      </div>
+    </div>
 
     <div class="container-card">
       <div class="container-card-header">
@@ -1554,6 +1812,114 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
       <strong>Option B</strong> uses a POP Network COMP + Render Simple TOP (TD 2025 GPU instancing — recommended).
       Build one; leave the other commented out or disabled.
     </p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Double-click <code>container_visual</code> to enter it</div>
+          <div class="step-desc">Breadcrumb: <code>/project1/container_visual</code>. Note: this container does not have a CHOP input — it reads from <code>container_signal</code> using expressions, not wires.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Noise TOP</strong> — rename it <code>noise1</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Noise</code> → place on the left.<br>
+            Parameters:
+            <br>• <strong>Type</strong> → <code>Sparse</code>
+            <br>• <strong>Resolution</strong> → <code>1280 × 720</code> (or your projector native)
+            <br>• <strong>Roughness</strong> → click the expression toggle (= icon) → type <code>op('container_signal/null_bands')['beta']</code>
+            <br>• <strong>Translate Z</strong> → expression: <code>absTime.seconds * op('container_signal/constant_flow').par.value0</code>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Add <strong>Remap TOP</strong> → <strong>Blur TOP</strong> — rename <code>remap1</code>, <code>blur1</code></div>
+          <div class="step-desc">
+            Wire: <code>noise1</code> → <code>remap1</code> → <code>blur1</code>.<br>
+            <strong>Blur TOP</strong> parameters: <strong>Size</strong> → <code>6</code>. Leave Remap at defaults initially; adjust the curve once you see the visual.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4a</div>
+        <div class="step-body">
+          <div class="step-title">Option B (TD 2025) — Add a <strong>POP Network COMP</strong> — rename it <code>popnet1</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>POP Network</code> → place below <code>blur1</code>.<br>
+            Double-click <code>popnet1</code> to enter the POP network. Inside, add:
+            <br>• <strong>POP Source</strong> (rename <code>popsource1</code>): Birth Rate → <code>0</code>, Constant Birth Rate → <code>450</code>
+            <br>• <strong>POP Noise</strong> (rename <code>popnoise1</code>): wire from <code>popsource1</code>. Amplitude expression → <code>op('container_signal/null_bands')['alpha'] * 0.4 + 0.05</code>
+            <br>• <strong>POP Color</strong> (rename <code>popcolor1</code>): wire from <code>popnoise1</code>. Set <strong>Color Type</strong> → <code>Ramp</code>
+            <br>• <strong>Capsule SOP</strong> (rename <code>capsule_shape</code>): Radius <code>0.02</code>, Height <code>0.12</code> — this is the instance geometry shape
+            <br>Press <kbd>U</kbd> to exit back to <code>container_visual</code>.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4b</div>
+        <div class="step-body">
+          <div class="step-title">Option B — Add a <strong>Render Simple TOP</strong> — rename it <code>renderSimple1</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Render Simple</code> → place to the right of <code>popnet1</code>.<br>
+            Parameters:
+            <br>• <strong>Geometry</strong> → drag <code>popnet1</code> into this field (or type its path)
+            <br>• <strong>Resolution</strong> → match <code>noise1</code> resolution (<code>1280 × 720</code>)
+            <br>• <strong>Background Color</strong> → <code>0, 0, 0, 0</code> (fully transparent — capsules render over black, composited via Screen blend)
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Composite TOP</strong> — rename it <code>composite1</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Composite</code> → place centrally.<br>
+            • Input 0 (first wire) → <code>renderSimple1</code> output (the fresh geometry frame)
+            <br>• Input 1 (second wire) → leave unconnected for now — you'll close the feedback loop in the next step
+            <br>• Parameters: <strong>Operation</strong> → <code>Screen</code>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Feedback TOP</strong> + <strong>Level TOP</strong> to create the trail loop</div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Feedback</code> → rename <code>feedback1</code>. Parameters: <strong>Target TOP</strong> → type <code>composite1</code>.<br>
+            Wire: <code>feedback1</code> output → <code>composite1</code> Input 1 (closing the loop).<br>
+            <br>Add <strong>Level TOP</strong> → rename <code>level_fade</code>. Wire: <code>feedback1</code> output → <code>level_fade</code> → back into <code>feedback1</code> input.
+            Parameters: <strong>Brightness</strong> → <code>0.985</code>. This fades old frames slightly each tick so trails don't accumulate to white.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">7</div>
+        <div class="step-body">
+          <div class="step-title">Add <strong>Level TOP</strong> → <strong>HSV Adjust TOP</strong> → <strong>Bloom TOP</strong> — the colour grade chain</div>
+          <div class="step-desc">
+            Wire: <code>composite1</code> → <code>level1</code> → <code>hsvadjust1</code> → <code>bloom1</code>.<br>
+            <br><strong>Level TOP</strong> (<code>level1</code>) → Brightness expression: <code>op('container_signal/null_bands')['delta'] * 0.6 + 0.3</code>
+            <br><strong>HSV Adjust TOP</strong> (<code>hsvadjust1</code>) → Hue Offset expression: <code>op('container_signal/constant_hue').par.value0 / 360.0</code> · Saturation expression: <code>op('container_signal/null_bands')['gamma'] * 0.5 + 0.6</code>
+            <br><strong>Bloom TOP</strong> (<code>bloom1</code>) → Threshold <code>0.55</code> · Blur Radius <code>12</code> · Blend <code>0.45</code>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">8</div>
+        <div class="step-body">
+          <div class="step-title">Add an <strong>Out TOP</strong> — rename it <code>out1</code></div>
+          <div class="step-desc">
+            Wire: <code>bloom1</code> → <code>out1</code>. This is the <strong>official output</strong> of the container.
+            Press <kbd>U</kbd> — you should see the full visual rendering inside <code>container_visual</code>'s thumbnail in the root network.
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div class="container-card">
       <div class="container-card-header">
@@ -1696,6 +2062,68 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
       the projector via a Window COMP.
     </p>
 
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Double-click <code>container_projection</code> to enter it</div>
+          <div class="step-desc">Breadcrumb: <code>/project1/container_projection</code>. This container receives a TOP texture input from the root level.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Wire the visual output into this container from the root</div>
+          <div class="step-desc">
+            Press <kbd>U</kbd> to go to root. Drag a wire from <code>container_visual</code>'s output port → <code>container_projection</code>'s input port. Re-enter <code>container_projection</code> — the input is now live.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Null TOP</strong> — rename it <code>null_visual_in</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Null</code> → place on the left. This Null receives the texture that was wired in from <code>container_visual</code>. It acts as a clean labelled input gate so the rest of this container can reference <code>null_visual_in</code> by name rather than the container input port directly.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Stoner COMP</strong> — rename it <code>stoner1</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Stoner</code> → place to the right of <code>null_visual_in</code>.<br>
+            Wire: <code>null_visual_in</code> → <code>stoner1</code> Texture input.<br>
+            Double-click <code>stoner1</code> to enter its UI. Click <strong>Add Points</strong> to create corner handles. You will align these to the mannequin outline during calibration (see Chapter 07). For now, leave them at the default rectangle shape.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Window COMP</strong> — rename it <code>window1</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Window</code> → place to the right of <code>stoner1</code>.<br>
+            Wire: <code>stoner1</code> output → <code>window1</code> input.<br>
+            Parameters:
+            <br>• <strong>Operator</strong> → drag <code>stoner1</code> into this field
+            <br>• <strong>Display</strong> → select your projector display index (usually <code>Display 2</code>; check your OS display settings)
+            <br>• <strong>Width / Height</strong> → set to projector native resolution (e.g. <code>1920 × 1080</code>)
+            <br>• <strong>Fullscreen</strong> → <code>On</code>
+            <br>• Click <strong>Open as Separate Window</strong> to send the output to the projector
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <div class="step-title">Press <kbd>U</kbd> to return to root and save — <kbd>Ctrl + S</kbd></div>
+          <div class="step-desc">The visual should now appear in the projector window. If the display shows a black screen, confirm the Window COMP's <strong>Display</strong> index is set to the correct output and <strong>Fullscreen</strong> is enabled.</div>
+        </div>
+      </div>
+    </div>
+
     <div class="container-card">
       <div class="container-card-header">
         <div class="container-card-icon" style="background:hsl(308 60% 60%/0.10);border:1px solid hsl(308 60% 60%/0.3)">📽</div>
@@ -1739,6 +2167,73 @@ tbody td:first-child { color: var(--cyan); font-family: var(--font-mono); font-s
       A non-destructive monitoring layer. None of the other containers depend on it.
       Keep it bypassed during performance; enable it during development and setup.
     </p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Double-click <code>container_debug</code> to enter it</div>
+          <div class="step-desc">Breadcrumb: <code>/project1/container_debug</code>. This container has no wired inputs — it reads other containers via expressions only.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Text TOP</strong> — rename it <code>text_emotion</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Text</code> → place on the left.<br>
+            Parameters: <strong>Text</strong> field → click the expression toggle (= icon) → type:<br>
+            <code>'EMOTION: ' + str(op('container_osc/oscin1')['emotion'])</code><br>
+            Font: <code>IBM Plex Mono</code>, size <code>24</code>, colour white. This displays the live emotion string.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Add a second <strong>Text TOP</strong> — rename it <code>text_bands</code></div>
+          <div class="step-desc">
+            Parameters: <strong>Text</strong> → expression:<br>
+            <code>'α:{:.2f} β:{:.2f} θ:{:.2f} γ:{:.2f} δ:{:.2f}'.format(op('container_signal/null_bands')['alpha'], op('container_signal/null_bands')['beta'], op('container_signal/null_bands')['theta'], op('container_signal/null_bands')['gamma'], op('container_signal/null_bands')['delta'])</code><br>
+            This shows all five smoothed band values at once, live-updating every frame.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Composite TOP</strong> — rename it <code>composite_hud</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Composite</code>.<br>
+            • Input 0 → reference <code>container_visual/out1</code> (type the path in the operator's first input field, or drag a wire in from outside)
+            <br>• Input 1 → <code>text_emotion</code>
+            <br>• Input 2 → <code>text_bands</code>
+            <br>Parameters: <strong>Operation</strong> → <code>Over</code>. View this composite during development to confirm EEG data is flowing all the way to the visual output.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">Add a <strong>Performance Monitor DAT</strong> — rename it <code>performance1</code></div>
+          <div class="step-desc">
+            <kbd>Tab</kbd> → <code>Performance Monitor</code> → place anywhere in the network.<br>
+            Right-click the node → <strong>Cook Performance</strong> to start monitoring. The table shows per-operator cook time in milliseconds. Look for any operator consistently above <code>8 ms</code> — that is your frame-rate bottleneck.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <div class="step-title">Bypass the container when presenting — <kbd>B</kbd> on <code>container_debug</code> at root level</div>
+          <div class="step-desc">
+            Press <kbd>U</kbd> to return to root, then select <code>container_debug</code> and press <kbd>B</kbd> to bypass it.
+            A yellow diagonal stripe appears on the node confirming it is inactive.
+            The HUD text will not appear on the projected surface during the live demo.
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div class="container-card">
       <div class="container-card-header">
