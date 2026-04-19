@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SENTIO — EEG LED Matrix Mockup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #000;
+      overflow: hidden;
+      font-family: 'IBM Plex Mono', 'Courier New', monospace;
+      color: #ccc;
+    }
+
+    #scene {
+      position: relative;
+      width: 100vw; height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Subtle radial ambient behind shirt */
+    #scene::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 55% 55% at 50% 50%, #050d14 0%, #000 70%);
+      pointer-events: none;
+    }
+
+    #shirt-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* height driven by JS */
+    }
+
+    #shirt-svg {
+      display: block;
+      filter: drop-shadow(0 0 28px #00111a);
+    }
+
+    #led-canvas {
+      position: absolute;
+      image-rendering: pixelated;
+      /* positioned by JS */
+    }
+
+    /* ─── HUD ─────────────────────────────────── */
+    .hud {
+      position: fixed;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* TOP LEFT */
+    #hud-tl {
+      top: 24px; left: 28px;
+    }
+    #brand {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.25em;
+      color: #00e5ff;
+      text-shadow: 0 0 12px #00e5ff88, 0 0 28px #00e5ff44;
+    }
+    #brand-sub {
+      font-size: 10px;
+      font-weight: 300;
+      letter-spacing: 0.18em;
+      color: #00e5ff55;
+      margin-top: 3px;
+    }
+
+    /* TOP RIGHT */
+    #hud-tr {
+      top: 24px; right: 28px;
+      text-align: right;
+    }
+    #emotion-label {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      line-height: 1;
+      transition: color 1s ease;
+    }
+    #pattern-label {
+      font-size: 10px;
+      font-weight: 300;
+      letter-spacing: 0.18em;
+      color: #ffffff44;
+      margin-top: 5px;
+    }
+    #confidence-wrap {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    #confidence-text {
+      font-size: 10px;
+      font-weight: 400;
+      color: #ffffff66;
+    }
+    #confidence-track {
+      width: 110px;
+      height: 4px;
+      background: #ffffff12;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    #confidence-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.6s ease, background 1s ease;
+    }
+
+    /* BOTTOM LEFT — band bars */
+    #hud-bl {
+      bottom: 28px; left: 28px;
+    }
+    #band-title {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      color: #ffffff33;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+    .band-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .band-name {
+      font-size: 10px;
+      font-weight: 500;
+      width: 16px;
+      text-align: right;
+      letter-spacing: 0.04em;
+    }
+    .band-track {
+      width: 90px;
+      height: 5px;
+      background: #ffffff0d;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .band-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s ease;
+    }
+    .band-val {
+      font-size: 9px;
+      color: #ffffff44;
+      width: 32px;
+    }
+
+    /* BOTTOM RIGHT — signal quality */
+    #hud-br {
+      bottom: 28px; right: 28px;
+      text-align: right;
+    }
+    #sq-title {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      color: #ffffff33;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    #sq-canvas {
+      display: block;
+      margin-left: auto;
+    }
+    #sq-label {
+      font-size: 18px;
+      font-weight: 600;
+      color: #00ff88;
+      text-shadow: 0 0 10px #00ff8866;
+      margin-top: 4px;
+    }
+    #sq-status {
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      color: #00ff8855;
+    }
+
+    /* Next emotion countdown */
+    #next-label {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      color: #ffffff22;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Scanline overlay for CRT feel */
+    #scanlines {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 20;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 3px,
+        rgba(0,0,0,0.07) 3px,
+        rgba(0,0,0,0.07) 4px
+      );
+    }
+
+    /* Vignette */
+    #vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 19;
+      background: radial-gradient(ellipse 80% 80% at 50% 50%, transparent 50%, rgba(0,0,0,0.6) 100%);
+    }
+  </style>
+</head>
+<body>
+
+<!-- Scene -->
+<div id="scene">
+  <div id="shirt-wrap">
+    <!-- T-shirt SVG drawn entirely in JS into this container -->
+    <svg id="shirt-svg" viewBox="0 0 320 380" xmlns="http://www.w3.org/2000/svg">
+      <!-- Shirt body -->
+      <path d="
+        M 100 30
+        C 110 20, 130 14, 160 14
+        C 190 14, 210 20, 220 30
+        L 280 80
+        L 250 110
+        L 240 90
+        L 240 360
+        L 80 360
+        L 80 90
+        L 70 110
+        L 40 80
+        Z
+      "
+        fill="#0a0a0a"
+        stroke="#1e1e1e"
+        stroke-width="1.5"
+        stroke-linejoin="round"
+      />
+      <!-- Collar / neck curve -->
+      <path d="
+        M 110 32
+        Q 160 60, 210 32
+      "
+        fill="none"
+        stroke="#252525"
+        stroke-width="2"
+      />
+      <!-- Subtle chest seam line -->
+      <line x1="160" y1="70" x2="160" y2="340" stroke="#131313" stroke-width="1" />
+      <!-- Sleeve highlight edges -->
+      <path d="M 100 30 L 40 80 L 70 110" fill="none" stroke="#161616" stroke-width="1" />
+      <path d="M 220 30 L 280 80 L 250 110" fill="none" stroke="#161616" stroke-width="1" />
+    </svg>
+
+    <!-- LED matrix canvas, positioned over chest by JS -->
+    <canvas id="led-canvas"></canvas>
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud-tl" class="hud">
+  <div id="brand">SENTIO</div>
+  <div id="brand-sub">EEG WEARABLE SYSTEM v1.0</div>
+</div>
+
+<div id="hud-tr" class="hud">
+  <div id="emotion-label">CALM</div>
+  <div id="pattern-label">ONDAS FLUIDAS</div>
+  <div id="confidence-wrap">
+    <span id="confidence-text">CONF 94%</span>
+    <div id="confidence-track"><div id="confidence-fill"></div></div>
+  </div>
+</div>
+
+<div id="hud-bl" class="hud">
+  <div id="band-title">EEG Band Power</div>
+  <div class="band-row">
+    <span class="band-name" style="color:#a78bfa">δ</span>
+    <div class="band-track"><div class="band-fill" id="bar-delta" style="background:#a78bfa"></div></div>
+    <span class="band-val" id="val-delta">0.00</span>
+  </div>
+  <div class="band-row">
+    <span class="band-name" style="color:#60a5fa">θ</span>
+    <div class="band-track"><div class="band-fill" id="bar-theta" style="background:#60a5fa"></div></div>
+    <span class="band-val" id="val-theta">0.00</span>
+  </div>
+  <div class="band-row">
+    <span class="band-name" style="color:#34d399">α</span>
+    <div class="band-track"><div class="band-fill" id="bar-alpha" style="background:#34d399"></div></div>
+    <span class="band-val" id="val-alpha">0.00</span>
+  </div>
+  <div class="band-row">
+    <span class="band-name" style="color:#fbbf24">β</span>
+    <div class="band-track"><div class="band-fill" id="bar-beta" style="background:#fbbf24"></div></div>
+    <span class="band-val" id="val-beta">0.00</span>
+  </div>
+  <div class="band-row">
+    <span class="band-name" style="color:#f87171">γ</span>
+    <div class="band-track"><div class="band-fill" id="bar-gamma" style="background:#f87171"></div></div>
+    <span class="band-val" id="val-gamma">0.00</span>
+  </div>
+</div>
+
+<div id="hud-br" class="hud">
+  <div id="sq-title">Signal Quality</div>
+  <canvas id="sq-canvas" width="90" height="50"></canvas>
+  <div id="sq-label">--</div>
+  <div id="sq-status">CONNECTED</div>
+</div>
+
+<div id="next-label">NEXT PATTERN IN --s</div>
+
+<div id="scanlines"></div>
+<div id="vignette"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  SENTIO LED Matrix Mockup
+//  16×16 WS2812B simulation — EEG-driven patterns
+// ═══════════════════════════════════════════════════════
+
+(function () {
+  'use strict';
+
+  // ── Constants ──────────────────────────────────────
+  const GRID      = 16;
+  const LED_D     = 17;       // circle diameter px
+  const LED_GAP   = 3;        // gap between circles
+  const LED_STEP  = LED_D + LED_GAP;
+  const MAT_SIZE  = GRID * LED_STEP - LED_GAP;  // total canvas size
+
+  // ── Emotion definitions ────────────────────────────
+  const EMOTIONS = [
+    {
+      id: 'calm',
+      label: 'CALM',
+      pattern: 1,
+      patternName: 'ONDAS FLUIDAS',
+      hue: 190,
+      hueCss: '#00e5ff',
+      confidence: 0.94,
+      bands: { alpha: 0.68, beta: 0.18, theta: 0.16, gamma: 0.06, delta: 0.24 }
+    },
+    {
+      id: 'focused',
+      label: 'FOCUSED',
+      pattern: 2,
+      patternName: 'PADRÃO GEOMÉTRICO',
+      hue: 38,
+      hueCss: '#ffb300',
+      confidence: 0.89,
+      bands: { alpha: 0.32, beta: 0.72, theta: 0.10, gamma: 0.14, delta: 0.12 }
+    },
+    {
+      id: 'stressed',
+      label: 'STRESSED',
+      pattern: 3,
+      patternName: 'PULSOS RÍTMICOS',
+      hue: 0,
+      hueCss: '#ff3333',
+      confidence: 0.91,
+      bands: { alpha: 0.22, beta: 0.88, theta: 0.08, gamma: 0.18, delta: 0.08 }
+    },
+    {
+      id: 'excited',
+      label: 'EXCITED',
+      pattern: 3,
+      patternName: 'PULSOS RÍTMICOS',
+      hue: 15,
+      hueCss: '#ff6600',
+      confidence: 0.87,
+      bands: { alpha: 0.40, beta: 0.65, theta: 0.12, gamma: 0.32, delta: 0.15 }
+    },
+    {
+      id: 'neutral',
+      label: 'NEUTRAL',
+      pattern: 4,
+      patternName: 'ESTRELAS E PARTÍCULAS',
+      hue: 290,
+      hueCss: '#cc44ff',
+      confidence: 0.82,
+      bands: { alpha: 0.50, beta: 0.30, theta: 0.25, gamma: 0.10, delta: 0.20 }
+    }
+  ];
+
+  const CYCLE_DURATION = 7000; // ms
+
+  // ── State ──────────────────────────────────────────
+  let currentEmotionIdx = 0;
+  let nextEmotionIdx    = 1;
+  let emotionStartTime  = performance.now();
+  let t = 0; // seconds
+
+  // Band values (live, interpolated)
+  let liveBands = { alpha: 0.68, beta: 0.18, theta: 0.16, gamma: 0.06, delta: 0.24 };
+
+  // Stars for pattern 4
+  const STAR_COUNT = 48;
+  const stars = [];
+  for (let i = 0; i < STAR_COUNT; i++) {
+    stars.push({
+      x:     Math.random() * 15,
+      y:     Math.random() * 15,
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.8 + Math.random() * 1.8
+    });
+  }
+  // star pixel buffer for fadeToBlack approach
+  const starBuf = new Float32Array(GRID * GRID); // brightness 0..1
+
+  // Signal quality history for arc
+  const SQ_HIST = 60;
+  const sqHistory = new Float32Array(SQ_HIST).fill(0.88);
+
+  // ── DOM refs ───────────────────────────────────────
+  const canvas   = document.getElementById('led-canvas');
+  const ctx      = canvas.getContext('2d');
+  const sqCanvas = document.getElementById('sq-canvas');
+  const sqCtx    = sqCanvas.getContext('2d');
+
+  const elEmotion    = document.getElementById('emotion-label');
+  const elPattern    = document.getElementById('pattern-label');
+  const elConfText   = document.getElementById('confidence-text');
+  const elConfFill   = document.getElementById('confidence-fill');
+  const elNext       = document.getElementById('next-label');
+
+  const barDelta  = document.getElementById('bar-delta');
+  const barTheta  = document.getElementById('bar-theta');
+  const barAlpha  = document.getElementById('bar-alpha');
+  const barBeta   = document.getElementById('bar-beta');
+  const barGamma  = document.getElementById('bar-gamma');
+  const valDelta  = document.getElementById('val-delta');
+  const valTheta  = document.getElementById('val-theta');
+  const valAlpha  = document.getElementById('val-alpha');
+  const valBeta   = document.getElementById('val-beta');
+  const valGamma  = document.getElementById('val-gamma');
+  const sqLabel   = document.getElementById('sq-label');
+
+  // ── Layout: size shirt + canvas ───────────────────
+  function layout() {
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    const shirtH = Math.min(vh * 0.78, vw * 0.52);
+    const shirtW = shirtH * (320 / 380);
+
+    const svg = document.getElementById('shirt-svg');
+    svg.style.width  = shirtW + 'px';
+    svg.style.height = shirtH + 'px';
+
+    // Scale for the canvas: fit inside chest region
+    // Chest area in SVG viewBox 320×380: roughly x80-240 (160 wide), y70-330 (260 tall)
+    const chestSvgX = 80, chestSvgW = 160;
+    const chestSvgY = 72, chestSvgH = 258;
+    const scaleX = shirtW / 320;
+    const scaleY = shirtH / 380;
+
+    // Available chest pixel area
+    const chestPxW = chestSvgW * scaleX;
+    const chestPxH = chestSvgH * scaleY;
+
+    // Fit matrix inside chest with some padding
+    const fitScale = Math.min((chestPxW * 0.88) / MAT_SIZE, (chestPxH * 0.82) / MAT_SIZE);
+    const matPx = MAT_SIZE * fitScale;
+
+    canvas.style.width  = matPx + 'px';
+    canvas.style.height = matPx + 'px';
+    canvas.width  = MAT_SIZE;
+    canvas.height = MAT_SIZE;
+
+    // Center canvas over chest area of shirt
+    const chestCX = chestSvgX * scaleX + chestPxW / 2;
+    const chestCY = chestSvgY * scaleY + chestPxH / 2;
+    canvas.style.left = (chestCX - matPx / 2) + 'px';
+    canvas.style.top  = (chestCY - matPx / 2) + 'px';
+  }
+
+  window.addEventListener('resize', layout);
+  layout();
+
+  // ── Helpers ────────────────────────────────────────
+  function lerp(a, b, k) { return a + (b - a) * k; }
+  function clamp(v, mn, mx) { return Math.max(mn, Math.min(mx, v)); }
+  function hslStr(h, s, l) {
+    return `hsl(${h|0},${(s*100)|0}%,${(l*100)|0}%)`;
+  }
+
+  // ── Pattern functions ──────────────────────────────
+  // Returns { hue, sat, bri } for pixel (x,y) at time t
+
+  function patternIdle(x, y, t) {
+    const bri = 0.08 + Math.sin(t * 0.5) * 0.07;
+    return { hue: 220, sat: 0.8, bri: Math.max(0.01, bri) };
+  }
+
+  function patternOndas(x, y, t) {
+    const nx = x / 16, ny = y / 16;
+    const scale = 1.0, speed = 1.2;
+    const w1 = Math.sin(nx * 6.283 * scale + t * speed);
+    const w2 = Math.sin(ny * 6.283 * scale + t * speed * 0.8);
+    const w3 = Math.sin((nx + ny) * 4.5 * scale + t * speed * 0.6);
+    const v  = (w1 + w2 + w3) / 3;
+    const hue = 190 + v * 30;
+    const bri = clamp(0.4 + v * 0.35, 0.05, 0.85);
+    const sat = 0.85 + v * 0.12;
+    return { hue, sat: clamp(sat, 0.5, 1.0), bri };
+  }
+
+  function patternGeometrico(x, y, t) {
+    const cx = 7.5, cy = 7.5;
+    const dx = (x - cx) / 8, dy = (y - cy) / 8;
+    const r   = Math.sqrt(dx * dx + dy * dy);
+    const ang = Math.atan2(dy, dx);
+    const raw = Math.sin(r * 8 - t * 2 + ang * 2);
+    const v   = raw * 0.5 + 0.5;
+    const hue = 38 + raw * 20;
+    const bri = clamp(0.15 + v * 0.75, 0.05, 0.92);
+    return { hue, sat: 0.92, bri };
+  }
+
+  function patternPulsos(x, y, t, speed) {
+    const cx = 7.5, cy = 7.5;
+    const armV = Math.exp(-(x - cx) * (x - cx) * 0.35);
+    const armH = Math.exp(-(y - cy) * (y - cy) * 0.35);
+    const cross = Math.max(armV, armH);
+    const dist  = Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+    const sp    = speed || 3.0;
+    const ring  = Math.sin(dist * 1.6 - t * sp) * 0.5 + 0.5;
+    const val   = clamp(cross * 0.55 + ring * 0.45, 0, 1);
+    // hue shifts from red (0) to orange (20) depending on emotion
+    const hue = 0 + val * 18;
+    const bri = clamp(val * 0.9, 0.03, 0.92);
+    return { hue, sat: 0.95, bri };
+  }
+
+  function patternExcited(x, y, t) {
+    // Variation: pulsing rings + cross, orange tones
+    const cx = 7.5, cy = 7.5;
+    const armV = Math.exp(-(x - cx) * (x - cx) * 0.28);
+    const armH = Math.exp(-(y - cy) * (y - cy) * 0.28);
+    const cross = Math.max(armV, armH);
+    const dist  = Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+    const ring  = Math.sin(dist * 1.8 - t * 3.5) * 0.5 + 0.5;
+    const val   = clamp(cross * 0.5 + ring * 0.5, 0, 1);
+    const hue   = 15 + val * 22;
+    const bri   = clamp(val * 0.88, 0.03, 0.92);
+    return { hue, sat: 0.95, bri };
+  }
+
+  // Star/particle pattern — uses starBuf
+  function patternStars(x, y, t, baseHue) {
+    const bri = starBuf[y * GRID + x];
+    return { hue: baseHue + (bri * 30 - 15), sat: 0.90, bri: clamp(bri, 0, 1) };
+  }
+
+  function updateStarBuf(t) {
+    // Fade to black
+    for (let i = 0; i < GRID * GRID; i++) {
+      starBuf[i] = Math.max(0, starBuf[i] - 0.04);
+    }
+    // Write each star
+    for (let s = 0; s < stars.length; s++) {
+      const star = stars[s];
+      const bri  = Math.sin(t * star.speed + star.phase) * 0.5 + 0.5;
+      const sx   = Math.round(star.x);
+      const sy   = Math.round(star.y);
+      const idx  = clamp(sy, 0, 15) * GRID + clamp(sx, 0, 15);
+      starBuf[idx] = Math.max(starBuf[idx], bri);
+      // Dim neighbours
+      if (bri > 0.7) {
+        const nb = [
+          [sx - 1, sy], [sx + 1, sy], [sx, sy - 1], [sx, sy + 1]
+        ];
+        for (const [nx, ny] of nb) {
+          if (nx >= 0 && nx < 16 && ny >= 0 && ny < 16) {
+            const ni = ny * GRID + nx;
+            starBuf[ni] = Math.max(starBuf[ni], bri * 0.35);
+          }
+        }
+      }
+    }
+  }
+
+  // ── Draw LED grid ──────────────────────────────────
+  function drawLEDs(emotion) {
+    ctx.clearRect(0, 0, MAT_SIZE, MAT_SIZE);
+
+    // Subtle matrix background grid
+    ctx.fillStyle = '#060606';
+    ctx.fillRect(0, 0, MAT_SIZE, MAT_SIZE);
+
+    const pat = emotion.pattern;
+    const baseHue = emotion.hue;
+
+    for (let row = 0; row < GRID; row++) {
+      for (let col = 0; col < GRID; col++) {
+        const cx = col * LED_STEP + LED_D / 2;
+        const cy = row * LED_STEP + LED_D / 2;
+        const r  = LED_D / 2 - 0.5;
+
+        let pix;
+        if      (pat === 0) pix = patternIdle(col, row, t);
+        else if (pat === 1) pix = patternOndas(col, row, t);
+        else if (pat === 2) pix = patternGeometrico(col, row, t);
+        else if (pat === 3) {
+          if (emotion.id === 'excited') pix = patternExcited(col, row, t);
+          else pix = patternPulsos(col, row, t, 3.0);
+        }
+        else if (pat === 4) pix = patternStars(col, row, t, baseHue);
+        else pix = patternIdle(col, row, t);
+
+        const h = pix.hue, s = pix.sat, l = pix.bri;
+
+        if (l < 0.06) {
+          // Off / dim LED
+          ctx.shadowBlur  = 0;
+          ctx.shadowColor = 'transparent';
+          ctx.fillStyle   = `hsl(${h|0},${(s*20)|0}%,8%)`;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          // Lit LED with glow
+          const glowStrength = clamp(l * 22, 4, 22);
+          ctx.shadowBlur  = glowStrength;
+          ctx.shadowColor = `hsl(${h|0},${(s*100)|0}%,${Math.min(70, l*120)|0}%)`;
+
+          // Outer glow pass
+          ctx.fillStyle = `hsla(${h|0},${(s*100)|0}%,${(l * 60)|0}%,0.25)`;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r + 2.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Main LED circle
+          ctx.fillStyle = hslStr(h, s, l);
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Specular highlight
+          const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.35, 0, cx, cy, r);
+          grad.addColorStop(0, `hsla(${h|0},30%,98%,${clamp(l * 0.55, 0, 0.5)})`);
+          grad.addColorStop(1, 'transparent');
+          ctx.shadowBlur  = 0;
+          ctx.shadowColor = 'transparent';
+          ctx.fillStyle   = grad;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // Reset shadow
+    ctx.shadowBlur  = 0;
+    ctx.shadowColor = 'transparent';
+  }
+
+  // ── Signal quality arc ────────────────────────────
+  function drawSQ(sq) {
+    sqCtx.clearRect(0, 0, 90, 50);
+
+    // History waveform
+    sqCtx.strokeStyle = '#00ff8833';
+    sqCtx.lineWidth   = 1;
+    sqCtx.beginPath();
+    for (let i = 0; i < SQ_HIST; i++) {
+      const x = (i / (SQ_HIST - 1)) * 90;
+      const y = 40 - sqHistory[i] * 32;
+      i === 0 ? sqCtx.moveTo(x, y) : sqCtx.lineTo(x, y);
+    }
+    sqCtx.stroke();
+
+    // Arc
+    const cx = 45, cy = 48, outerR = 30, innerR = 22;
+    const startA = Math.PI, endA = 2 * Math.PI;
+    const fillA  = startA + (endA - startA) * sq;
+
+    // Track
+    sqCtx.beginPath();
+    sqCtx.arc(cx, cy, outerR, startA, endA);
+    sqCtx.arc(cx, cy, innerR, endA, startA, true);
+    sqCtx.closePath();
+    sqCtx.fillStyle = '#00ff8810';
+    sqCtx.fill();
+
+    // Fill
+    sqCtx.beginPath();
+    sqCtx.arc(cx, cy, outerR, startA, fillA);
+    sqCtx.arc(cx, cy, innerR, fillA, startA, true);
+    sqCtx.closePath();
+    const g = sqCtx.createLinearGradient(15, 48, 75, 48);
+    g.addColorStop(0, '#00ff88');
+    g.addColorStop(1, '#00e5ff');
+    sqCtx.fillStyle = g;
+    sqCtx.shadowBlur  = 6;
+    sqCtx.shadowColor = '#00ff8888';
+    sqCtx.fill();
+    sqCtx.shadowBlur = 0;
+  }
+
+  // ── HUD update ─────────────────────────────────────
+  let lastHudUpdate = 0;
+  function updateHUD(now, emotion) {
+    if (now - lastHudUpdate < 80) return;
+    lastHudUpdate = now;
+
+    // Emotion
+    elEmotion.textContent  = emotion.label;
+    elEmotion.style.color  = emotion.hueCss;
+    elEmotion.style.textShadow = `0 0 14px ${emotion.hueCss}88, 0 0 32px ${emotion.hueCss}44`;
+    elPattern.textContent  = emotion.patternName;
+
+    // Confidence
+    const conf = clamp(emotion.confidence + Math.sin(t * 0.7) * 0.04, 0.6, 0.99);
+    elConfText.textContent = `CONF ${(conf * 100)|0}%`;
+    elConfFill.style.width      = (conf * 100) + '%';
+    elConfFill.style.background = `linear-gradient(to right, ${emotion.hueCss}88, ${emotion.hueCss})`;
+
+    // Band bars
+    const noiseT = t;
+    const bands = emotion.bands;
+    const noise = (seed) => Math.sin(noiseT * 1.7 + seed) * 0.05;
+
+    const a = clamp(bands.alpha + noise(1), 0, 1);
+    const b = clamp(bands.beta  + noise(2), 0, 1);
+    const th= clamp(bands.theta + noise(3), 0, 1);
+    const g = clamp(bands.gamma + noise(4), 0, 1);
+    const d = clamp(bands.delta + noise(5), 0, 1);
+
+    liveBands = { alpha: a, beta: b, theta: th, gamma: g, delta: d };
+
+    barAlpha.style.width  = (a  * 100) + '%';
+    barBeta.style.width   = (b  * 100) + '%';
+    barTheta.style.width  = (th * 100) + '%';
+    barGamma.style.width  = (g  * 100) + '%';
+    barDelta.style.width  = (d  * 100) + '%';
+    valAlpha.textContent  = a.toFixed(2);
+    valBeta.textContent   = b.toFixed(2);
+    valTheta.textContent  = th.toFixed(2);
+    valGamma.textContent  = g.toFixed(2);
+    valDelta.textContent  = d.toFixed(2);
+
+    // Signal quality
+    const sq = clamp((85 + Math.sin(t * 0.3) * 10) / 100, 0.7, 1.0);
+    sqHistory.copyWithin(0, 1);
+    sqHistory[SQ_HIST - 1] = sq;
+    drawSQ(sq);
+    sqLabel.textContent = ((sq * 100) | 0) + '%';
+
+    // Next label
+    const elapsed = (now - emotionStartTime);
+    const remaining = Math.max(0, Math.ceil((CYCLE_DURATION - elapsed) / 1000));
+    elNext.textContent = `NEXT: ${EMOTIONS[nextEmotionIdx].label}  IN ${remaining}s`;
+  }
+
+  // ── Main render loop ───────────────────────────────
+  let lastFrame = performance.now();
+
+  function frame(now) {
+    const dt = (now - lastFrame) / 1000;
+    lastFrame = now;
+    t += dt;
+
+    // Cycle emotions
+    const elapsed = now - emotionStartTime;
+    if (elapsed >= CYCLE_DURATION) {
+      emotionStartTime = now;
+      currentEmotionIdx = nextEmotionIdx;
+      nextEmotionIdx = (nextEmotionIdx + 1) % EMOTIONS.length;
+    }
+
+    const emotion = EMOTIONS[currentEmotionIdx];
+
+    // Update star buffer for pattern 4
+    if (emotion.pattern === 4) {
+      updateStarBuf(t);
+    }
+
+    drawLEDs(emotion);
+    updateHUD(now, emotion);
+
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>
