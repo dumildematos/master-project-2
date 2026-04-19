@@ -86,12 +86,7 @@ def start_session(config: SessionConfig):
     session_id = session_manager.start_session(session_config)
     session_manager.muse_connection = muse_connection
     session_manager.set_state(SessionState.CONNECTING)
-    osc_sender.send_fields(
-        {
-            "age": session_config.get("age"),
-            "pattern_type": session_config.get("pattern_type"),
-        }
-    )
+    # Do NOT send any OSC here — wait until the stream loop produces a real EEG frame.
     start_streaming()
     return {"session_id": session_id, "status": "started"}
 

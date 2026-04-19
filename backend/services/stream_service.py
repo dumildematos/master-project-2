@@ -125,8 +125,30 @@ def _start_stream_runtime(muse_connection: MuseConnection) -> tuple[PatternType,
     selected_pattern = _get_selected_pattern()
     stream_config = _build_stream_config(muse_connection, selected_pattern)
     session_manager.set_state(SessionState.RUNNING)
-    osc_sender.send_fields({"active": 1})
+    # Do NOT send active:1 here — the first real EEG frame already includes active:1.
+    # Sending early would push a packet to TouchDesigner before any signal exists.
     return selected_pattern, stream_config
+
+
+def _compute_signal_quality(features: dict) -> float:
+    """
+    Estimate signal quality (0–100) from band-power distribution.
+
+    Clean EEG is dominated by alpha (0.25–0.5 of total).  Very noisy or
+    disconnected electrodes produce flat, near-equal band powers where alpha
+    is suppressed.  We use the alpha-to-total ratio as a proxy, scaled to
+    0–100 so the frontend disconnect detector thresholds (15 / 38) work
+    correctly without any client-side rescaling.
+    """
+    alpha = features.get("alpha", 0.0)
+    beta  = features.get("beta",  0.0)
+    theta = features.get("theta", 0.0)
+    # Alpha + theta together form the "calm resting" bands — good signal
+    # quality correlates with these being well above noise floor.
+    dominant = alpha + theta + beta
+    # Scale to 0-100; typical good-signal dominant ≈ 0.75 → maps to 100
+    quality = min(100.0, dominant * 133.0)
+    return round(quality, 1)
 
 
 def _build_stream_message(features, emotion_result, pattern_params, selected_pattern: PatternType, stream_config: dict) -> dict:
@@ -138,7 +160,7 @@ def _build_stream_message(features, emotion_result, pattern_params, selected_pat
         "gamma": float(features["gamma"]),
         "theta": float(features["theta"]),
         "delta": float(features["delta"]),
-        "signal_quality": 1.0,
+        "signal_quality": _compute_signal_quality(features),
         "emotion": emotion_result.emotion.value,
         "confidence": float(emotion_result.confidence),
         "mindfulness": (

@@ -116,22 +116,29 @@ async def brain_stream(websocket: WebSocket):
     last_wait_log = 0.0
     _log_connection_accepted(client_host, client_port)
 
+    last_heartbeat = time.monotonic()
+    HEARTBEAT_INTERVAL = 5.0  # seconds between keepalive pings (no EEG data)
+
     try:
         while True:
             message = session_manager.get_latest_stream_message()
+
             if message is None:
-                # Keep the socket open — just wait for the session/stream to start.
-                # Send a lightweight heartbeat every 5 s so the client knows we are alive.
+                # No real EEG data yet — keep the socket alive with a typed
+                # keepalive ping but do NOT send any EEG-shaped payload.
+                # The frontend must ignore messages with type == "heartbeat".
                 last_wait_log = _log_waiting_for_data(client_host, client_port, last_wait_log)
                 now = time.monotonic()
-                if now - last_wait_log >= 5.0:
+                if now - last_heartbeat >= HEARTBEAT_INTERVAL:
                     try:
                         await websocket.send_json({"type": "heartbeat", "status": "waiting"})
+                        last_heartbeat = now
                     except Exception:
                         break
                 await asyncio.sleep(0.1)
                 continue
 
+            # Real EEG frame available — send it and reset the heartbeat timer.
             last_timestamp, messages_sent = await _send_new_message(
                 websocket,
                 message,
@@ -140,7 +147,7 @@ async def brain_stream(websocket: WebSocket):
                 client_host,
                 client_port,
             )
-
+            last_heartbeat = time.monotonic()
             await asyncio.sleep(settings.eeg_update_interval)
     except WebSocketDisconnect:
         logger.info(

@@ -17,9 +17,8 @@ EEG → Emotion → Generative Fashion
 ```bash
 cd backend
 python -m venv .venv
-source .venv/Scripts/activate
-python -m pip install -r requirements.txt
-python -m uvicorn main:app --host 0.0.0.0 --port 8000
+.venv/Scripts/python.exe -m pip install -r requirements.txt
+.venv/Scripts/python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 ### 2. EEG Simulator (if no Muse headband)
