@@ -7,9 +7,9 @@ Run:
   python generate_report.py
 
 Screenshots (optional – place in docs/screenshots/):
-  01_config_screen.png       02_device_settings.png
-  03_calibration_screen.png  04_signal_lost.png
-  05_monitoring_screen.png
+  led_patterns_tshirt.png    01_config_screen.png
+  02_device_settings.png     03_calibration_screen.png
+  04_signal_lost.png         05_monitoring_screen.png
 """
 
 from docx import Document
@@ -42,6 +42,14 @@ SCREENSHOTS = [
      "Figure 5 — Live Monitoring dashboard: emotion orb, real-time EEG band power "
      "chart, Visual Parameters panel, and AI Guidance pane."),
 ]
+
+TSHIRT_PHOTO = (
+    "led_patterns_tshirt.png",
+    "Figure 6 — The four emotion-driven LED patterns rendered on the physical "
+    "WS2812B t-shirt garment (200 LEDs, 10x20 serpentine matrix, 40x55 cm active "
+    "area): (1) Ondas Fluidas — calm/relaxed; (2) Padrao Geometrico — focused; "
+    "(3) Pulsos Ritmicos — stressed/excited; (4) Estrelas e Particulas — neutral."
+)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -237,6 +245,8 @@ body(doc,
     "interactive system, examining usability, interaction design principles, and "
     "system-level thinking to assess how successfully it bridges complex "
     "neurological data and a meaningful wearable experience.")
+
+image(doc, TSHIRT_PHOTO[0], TSHIRT_PHOTO[1], width=Inches(6.2))
 
 image(doc, "01_config_screen.png", SCREENSHOTS[0][1])
 
@@ -490,11 +500,12 @@ for r in references:
 doc.save(OUT_FILE)
 print("Saved -> " + OUT_FILE)
 
-missing = [f for f, _ in SCREENSHOTS
+all_images = [(TSHIRT_PHOTO[0], TSHIRT_PHOTO[1])] + SCREENSHOTS
+missing = [f for f, _ in all_images
            if not os.path.exists(os.path.join(SHOTS_DIR, f))]
 if missing:
-    print("\nMissing screenshots (save to docs/screenshots/):")
+    print("\nMissing images (save to docs/screenshots/):")
     for f in missing:
         print("  " + f)
 else:
-    print("All screenshots embedded.")
+    print("All images embedded.")
