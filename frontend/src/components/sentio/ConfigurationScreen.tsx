@@ -24,15 +24,24 @@ interface Props {
 const ConfigurationScreen = ({ config, setConfig, onStart }: Props) => {
     const [showDevicePopup, setShowDevicePopup] = React.useState(false);
     const [macAddress, setMacAddress] = React.useState("");
+    const [gridW, setGridW] = React.useState(16);
+    const [gridH, setGridH] = React.useState(16);
+    const [settingsTab, setSettingsTab] = React.useState<"device" | "grid">("device");
 
     React.useEffect(() => {
       const storedMac = localStorage.getItem("muse2MacAddress");
       if (storedMac) setMacAddress(storedMac);
+      const storedW = localStorage.getItem("matrixWidth");
+      const storedH = localStorage.getItem("matrixHeight");
+      if (storedW) setGridW(Number(storedW));
+      if (storedH) setGridH(Number(storedH));
     }, []);
 
-    const handleSaveMac = (e: React.FormEvent) => {
+    const handleSaveSettings = (e: React.FormEvent) => {
       e.preventDefault();
-      localStorage.setItem("muse2MacAddress", macAddress);
+      if (macAddress) localStorage.setItem("muse2MacAddress", macAddress);
+      localStorage.setItem("matrixWidth",  String(Math.max(1, gridW)));
+      localStorage.setItem("matrixHeight", String(Math.max(1, gridH)));
       setShowDevicePopup(false);
     };
   const isValid = config.age && config.gender && config.patternType;
@@ -137,24 +146,147 @@ const ConfigurationScreen = ({ config, setConfig, onStart }: Props) => {
               <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-settings"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09c.7 0 1.34-.4 1.51-1a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06c.48.48 1.17.6 1.82.33.65-.27 1-1.02 1-1.51V3a2 2 0 0 1 4 0v.09c0 .49.35 1.24 1 1.51.65.27 1.34.15 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82c.17.6.81 1 1.51 1H21a2 2 0 0 1 0 4h-.09c-.7 0-1.34.4-1.51 1Z"/></svg>
             </button>
 
-            {/* Device MAC Address Popup */}
+            {/* Settings Popup */}
             {showDevicePopup && (
-              <div className="fixed bottom-0 right-0 left-0 top-0 bg-black/40 z-50 flex items-end justify-end">
-                <div className="bg-white rounded-xl shadow-2xl p-6 m-8 max-w-xs w-full flex flex-col gap-4">
-                  <h3 className="text-lg font-semibold mb-2">Muse2 Device MAC Address</h3>
-                  <form onSubmit={handleSaveMac} className="flex flex-col gap-3">
-                    <input
-                      type="text"
-                      value={macAddress}
-                      onChange={e => setMacAddress(e.target.value)}
-                      placeholder="Enter MAC address"
-                      className="border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                      required
-                    />
-                    <button type="submit" className="bg-primary text-white rounded-lg py-2 font-semibold text-sm mt-2">Save</button>
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-end">
+                <motion.div
+                  initial={{ opacity: 0, y: 24, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 16 }}
+                  transition={{ type: "spring", stiffness: 280, damping: 24 }}
+                  className="m-6 mb-24 w-80 rounded-2xl shadow-2xl overflow-hidden"
+                  style={{
+                    background: "hsl(230 25% 10%)",
+                    border: "1px solid hsl(220 20% 22%)",
+                  }}
+                >
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                    <span className="text-sm font-semibold text-foreground font-mono tracking-wide">Settings</span>
+                    <button
+                      onClick={() => setShowDevicePopup(false)}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label="Close"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Tabs */}
+                  <div className="flex gap-1 mx-5 mb-4 bg-muted/20 rounded-xl p-1">
+                    {(["device", "grid"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setSettingsTab(tab)}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-mono font-medium transition-all capitalize ${
+                          settingsTab === tab
+                            ? "bg-primary/20 text-primary border border-primary/30"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {tab === "device" ? "📡  Device" : "⊞  Grid"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Tab Content */}
+                  <form onSubmit={handleSaveSettings} className="px-5 pb-5 flex flex-col gap-4">
+
+                    {settingsTab === "device" && (
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs text-muted-foreground font-mono">Muse 2 MAC Address</label>
+                          <input
+                            type="text"
+                            value={macAddress}
+                            onChange={e => setMacAddress(e.target.value)}
+                            placeholder="XX:XX:XX:XX:XX:XX"
+                            className="w-full bg-muted/30 border border-border/40 rounded-xl px-3 py-2.5 text-sm font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
+                          />
+                          <p className="text-xs text-muted-foreground/60 font-mono">
+                            Found via <code className="bg-muted/40 px-1 rounded">hcitool scan</code> or nRF Connect
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {settingsTab === "grid" && (
+                      <div className="flex flex-col gap-3">
+                        <p className="text-xs text-muted-foreground font-mono leading-relaxed">
+                          Set the LED matrix dimensions to match your physical hardware.
+                          These values are used by the mockup and sent to the backend.
+                        </p>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs text-muted-foreground font-mono">Columns (W)</label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={64}
+                              value={gridW}
+                              onChange={e => setGridW(Number(e.target.value))}
+                              className="w-full bg-muted/30 border border-border/40 rounded-xl px-3 py-2.5 text-sm font-mono text-foreground text-center focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs text-muted-foreground font-mono">Rows (H)</label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={64}
+                              value={gridH}
+                              onChange={e => setGridH(Number(e.target.value))}
+                              className="w-full bg-muted/30 border border-border/40 rounded-xl px-3 py-2.5 text-sm font-mono text-foreground text-center focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Common presets */}
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs text-muted-foreground font-mono">Quick Presets</label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {[
+                              { label: "8×8",   w: 8,  h: 8  },
+                              { label: "10×20", w: 10, h: 20 },
+                              { label: "16×16", w: 16, h: 16 },
+                            ].map((p) => (
+                              <button
+                                key={p.label}
+                                type="button"
+                                onClick={() => { setGridW(p.w); setGridH(p.h); }}
+                                className={`py-1.5 rounded-lg text-xs font-mono border transition-all ${
+                                  gridW === p.w && gridH === p.h
+                                    ? "bg-primary/20 border-primary/50 text-primary"
+                                    : "bg-muted/20 border-border/30 text-muted-foreground hover:border-border/60"
+                                }`}
+                              >
+                                {p.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Live summary */}
+                        <div className="rounded-xl bg-muted/20 border border-border/30 px-3 py-2.5 flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground font-mono">Total LEDs</span>
+                          <span className="text-sm font-bold text-primary font-mono">
+                            {gridW * gridH}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold font-mono hover:shadow-[0_0_20px_hsl(187_80%_55%/0.3)] transition-all"
+                    >
+                      Save Settings
+                    </button>
                   </form>
-                  <button className="text-xs text-muted-foreground underline mt-2 self-end" onClick={() => setShowDevicePopup(false)}>Close</button>
-                </div>
+                </motion.div>
               </div>
             )}
       <motion.p
