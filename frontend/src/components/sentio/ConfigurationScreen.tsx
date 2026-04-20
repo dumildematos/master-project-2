@@ -44,14 +44,20 @@ interface Props {
 
 const ConfigurationScreen = ({ config, setConfig, onStart }: Props) => {
     const [showDevicePopup, setShowDevicePopup] = React.useState(false);
-    const [macAddress, setMacAddress] = React.useState("");
+    const [macAddress, setMacAddress]           = React.useState("");
+    const [deviceSource, setDeviceSource]       = React.useState<"auto" | "bluemuse" | "brainflow">("auto");
+    const [streamName, setStreamName]           = React.useState("");
     const [gridW, setGridW] = React.useState(16);
     const [gridH, setGridH] = React.useState(16);
     const [settingsTab, setSettingsTab] = React.useState<"device" | "grid">("device");
 
     React.useEffect(() => {
-      const storedMac = localStorage.getItem("muse2MacAddress");
-      if (storedMac) setMacAddress(storedMac);
+      const storedMac    = localStorage.getItem("muse2MacAddress");
+      const storedSource = localStorage.getItem("deviceSource") as "auto" | "bluemuse" | "brainflow" | null;
+      const storedStream = localStorage.getItem("lslStreamName");
+      if (storedMac)    setMacAddress(storedMac);
+      if (storedSource) setDeviceSource(storedSource);
+      if (storedStream) setStreamName(storedStream);
       const storedW = localStorage.getItem("matrixWidth");
       const storedH = localStorage.getItem("matrixHeight");
       if (storedW) setGridW(Number(storedW));
@@ -61,8 +67,10 @@ const ConfigurationScreen = ({ config, setConfig, onStart }: Props) => {
     const handleSaveSettings = (e: React.FormEvent) => {
       e.preventDefault();
       if (macAddress) localStorage.setItem("muse2MacAddress", macAddress);
-      localStorage.setItem("matrixWidth",  String(Math.max(1, gridW)));
-      localStorage.setItem("matrixHeight", String(Math.max(1, gridH)));
+      localStorage.setItem("deviceSource",  deviceSource);
+      localStorage.setItem("lslStreamName", streamName);
+      localStorage.setItem("matrixWidth",   String(Math.max(1, gridW)));
+      localStorage.setItem("matrixHeight",  String(Math.max(1, gridH)));
       setShowDevicePopup(false);
     };
   const isValid = config.age && config.gender && config.patternType;
@@ -84,7 +92,9 @@ const ConfigurationScreen = ({ config, setConfig, onStart }: Props) => {
           pattern_type: config.patternType,
           signal_sensitivity: config.sensitivity / 100,
           noise_control: 1,
-          mac_address: macAddress || undefined,
+          mac_address:   macAddress   || undefined,
+          device_source: deviceSource,
+          stream_name:   (deviceSource === "bluemuse" && streamName) ? streamName : undefined,
           matrix_width:  resolveGrid(config.gridSize).w,
           matrix_height: resolveGrid(config.gridSize).h,
         }),
@@ -218,20 +228,72 @@ const ConfigurationScreen = ({ config, setConfig, onStart }: Props) => {
                   <form onSubmit={handleSaveSettings} className="px-5 pb-5 flex flex-col gap-4">
 
                     {settingsTab === "device" && (
-                      <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-4">
+
+                        {/* Connection type */}
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-xs text-muted-foreground font-mono">Muse 2 MAC Address</label>
-                          <input
-                            type="text"
-                            value={macAddress}
-                            onChange={e => setMacAddress(e.target.value)}
-                            placeholder="XX:XX:XX:XX:XX:XX"
-                            className="w-full bg-muted/30 border border-border/40 rounded-xl px-3 py-2.5 text-sm font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
-                          />
-                          <p className="text-xs text-muted-foreground/60 font-mono">
-                            Found via <code className="bg-muted/40 px-1 rounded">hcitool scan</code> or nRF Connect
-                          </p>
+                          <label className="text-xs text-muted-foreground font-mono">Connection Type</label>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {([
+                              { id: "auto",      label: "Auto",     hint: "Try both" },
+                              { id: "bluemuse",  label: "BlueMuse", hint: "LSL stream" },
+                              { id: "brainflow", label: "BrainFlow",hint: "Bluetooth" },
+                            ] as const).map((opt) => (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => setDeviceSource(opt.id)}
+                                className={`flex flex-col items-center py-2 px-1 rounded-xl border text-xs font-mono transition-all ${
+                                  deviceSource === opt.id
+                                    ? "bg-primary/15 border-primary/50 text-primary"
+                                    : "bg-muted/20 border-border/30 text-muted-foreground hover:border-border/60"
+                                }`}
+                              >
+                                <span className="font-semibold">{opt.label}</span>
+                                <span className="text-[9px] opacity-60 mt-0.5">{opt.hint}</span>
+                              </button>
+                            ))}
+                          </div>
+                          {deviceSource === "bluemuse" && (
+                            <p className="text-[10px] text-amber-400/80 font-mono leading-relaxed">
+                              ⚡ LSL Bridge must be running with your Muse connected.
+                            </p>
+                          )}
                         </div>
+
+                        {/* LSL stream name — only shown for BlueMuse */}
+                        {deviceSource === "bluemuse" && (
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs text-muted-foreground font-mono">LSL Stream Name <span className="opacity-50">(optional)</span></label>
+                            <input
+                              type="text"
+                              value={streamName}
+                              onChange={e => setStreamName(e.target.value)}
+                              placeholder="e.g. Muse-7E3A"
+                              className="w-full bg-muted/30 border border-border/40 rounded-xl px-3 py-2.5 text-sm font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
+                            />
+                            <p className="text-[10px] text-muted-foreground/60 font-mono">
+                              Shown in LSL Bridge — leave blank to use the first stream found.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* MAC address — shown for BrainFlow / Auto */}
+                        {deviceSource !== "bluemuse" && (
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs text-muted-foreground font-mono">Muse 2 MAC Address</label>
+                            <input
+                              type="text"
+                              value={macAddress}
+                              onChange={e => setMacAddress(e.target.value)}
+                              placeholder="XX:XX:XX:XX:XX:XX"
+                              className="w-full bg-muted/30 border border-border/40 rounded-xl px-3 py-2.5 text-sm font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
+                            />
+                            <p className="text-[10px] text-muted-foreground/60 font-mono">
+                              Found via <code className="bg-muted/40 px-1 rounded">hcitool scan</code> or nRF Connect
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
 

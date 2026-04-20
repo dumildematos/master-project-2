@@ -23,23 +23,30 @@ export default function ConfigurationScreen({ config, setConfig, onStart }: Prop
   const [macAddress,            setMacAddress]            = React.useState("");
   const [apiUrl,                setApiUrl]                = React.useState("http://localhost:8000");
   const [apiUrlDraft,           setApiUrlDraft]           = React.useState("http://localhost:8000");
+  const [deviceSource, setDeviceSource] = React.useState<"auto" | "bluemuse" | "brainflow">("auto");
+  const [streamName,   setStreamName]   = React.useState("");
   const [loading,               setLoading]               = React.useState(false);
   const [retrying,              setRetrying]              = React.useState(false);
 
   React.useEffect(() => {
-    const storedMac = localStorage.getItem("muse2MacAddress");
-    if (storedMac) setMacAddress(storedMac);
-
-    const storedApi = localStorage.getItem("sentioApiUrl");
-    if (storedApi) { setApiUrl(storedApi); setApiUrlDraft(storedApi); }
+    const storedMac    = localStorage.getItem("muse2MacAddress");
+    const storedApi    = localStorage.getItem("sentioApiUrl");
+    const storedSource = localStorage.getItem("deviceSource") as "auto" | "bluemuse" | "brainflow" | null;
+    const storedStream = localStorage.getItem("lslStreamName");
+    if (storedMac)    setMacAddress(storedMac);
+    if (storedApi)    { setApiUrl(storedApi); setApiUrlDraft(storedApi); }
+    if (storedSource) setDeviceSource(storedSource);
+    if (storedStream) setStreamName(storedStream);
   }, []);
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = apiUrlDraft.replace(/\/$/, ""); // strip trailing slash
+    const trimmed = apiUrlDraft.replace(/\/$/, "");
     setApiUrl(trimmed);
-    localStorage.setItem("sentioApiUrl",      trimmed);
-    localStorage.setItem("muse2MacAddress",   macAddress);
+    localStorage.setItem("sentioApiUrl",    trimmed);
+    localStorage.setItem("muse2MacAddress", macAddress);
+    localStorage.setItem("deviceSource",    deviceSource);
+    localStorage.setItem("lslStreamName",   streamName);
     setShowDevicePopup(false);
   };
 
@@ -56,7 +63,9 @@ export default function ConfigurationScreen({ config, setConfig, onStart }: Prop
           pattern_type:       config.patternType,
           signal_sensitivity: config.sensitivity / 100,
           noise_control:      1.0,
-          mac_address:        macAddress || undefined,
+          mac_address:        macAddress   || undefined,
+          device_source:      deviceSource,
+          stream_name:        (deviceSource === "bluemuse" && streamName) ? streamName : undefined,
         }),
       });
 
@@ -287,24 +296,80 @@ export default function ConfigurationScreen({ config, setConfig, onStart }: Prop
               {/* Divider */}
               <div className="border-t border-border/30" />
 
-              {/* MAC Address */}
+              {/* Connection type */}
               <div className="flex flex-col gap-1.5">
                 <label className="mono text-xs text-muted-foreground uppercase tracking-widest">
-                  Muse 2 MAC Address
+                  Connection Type
                 </label>
-                <input
-                  type="text"
-                  value={macAddress}
-                  onChange={(e) => setMacAddress(e.target.value)}
-                  placeholder="XX:XX:XX:XX:XX:XX"
-                  className="bg-muted/50 border border-border/50 rounded-xl px-4 py-3 text-sm text-foreground
-                    placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/40
-                    transition-all"
-                />
-                <p className="mono text-[10px] text-muted-foreground">
-                  Leave blank to use the value from your backend config
-                </p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {([
+                    { id: "auto",      label: "Auto",      hint: "Try both"   },
+                    { id: "bluemuse",  label: "BlueMuse",  hint: "LSL stream" },
+                    { id: "brainflow", label: "BrainFlow", hint: "Bluetooth"  },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setDeviceSource(opt.id)}
+                      className={`flex flex-col items-center py-2 rounded-xl border text-xs font-mono transition-all ${
+                        deviceSource === opt.id
+                          ? "bg-primary/15 border-primary/50 text-primary"
+                          : "bg-muted/20 border-border/30 text-muted-foreground hover:border-border/60"
+                      }`}
+                    >
+                      <span className="font-semibold">{opt.label}</span>
+                      <span className="text-[9px] opacity-60 mt-0.5">{opt.hint}</span>
+                    </button>
+                  ))}
+                </div>
+                {deviceSource === "bluemuse" && (
+                  <p className="mono text-[10px] text-amber-400/80">
+                    ⚡ LSL Bridge must be running with your Muse connected.
+                  </p>
+                )}
               </div>
+
+              {/* LSL stream name (BlueMuse only) */}
+              {deviceSource === "bluemuse" && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="mono text-xs text-muted-foreground uppercase tracking-widest">
+                    LSL Stream Name <span className="normal-case opacity-50">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={streamName}
+                    onChange={(e) => setStreamName(e.target.value)}
+                    placeholder="e.g. Muse-7E3A"
+                    className="bg-muted/50 border border-border/50 rounded-xl px-4 py-3 text-sm text-foreground
+                      placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/40
+                      transition-all"
+                  />
+                  <p className="mono text-[10px] text-muted-foreground">
+                    Shown in LSL Bridge — leave blank to auto-detect.
+                  </p>
+                </div>
+              )}
+
+              {/* MAC address (BrainFlow / Auto only) */}
+              {deviceSource !== "bluemuse" && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="mono text-xs text-muted-foreground uppercase tracking-widest">
+                    Muse 2 MAC Address
+                  </label>
+                  <input
+                    type="text"
+                    value={macAddress}
+                    onChange={(e) => setMacAddress(e.target.value)}
+                    placeholder="XX:XX:XX:XX:XX:XX"
+                    className="bg-muted/50 border border-border/50 rounded-xl px-4 py-3 text-sm text-foreground
+                      placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/40
+                      transition-all"
+                  />
+                  <p className="mono text-[10px] text-muted-foreground">
+                    Leave blank to use the value from your backend config
+                  </p>
+                </div>
+              )}
 
               {/* Save */}
               <button
