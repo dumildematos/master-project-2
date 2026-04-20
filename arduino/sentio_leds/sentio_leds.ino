@@ -7,7 +7,10 @@
 //    • WebSocketsClient by Markus Sattler          (arduinoWebSockets)
 //    • ArduinoJson      by Benoit Blanchon  v6.x   (JSON parsing)
 //
-//  Board: "ESP32 Dev Module" (esp32 by Espressif — Boards Manager)
+//  Board: "Adafruit Feather ESP32 V2" when available in the ESP32 boards package
+//         otherwise use "ESP32 Dev Module" for classic ESP32 boards
+//  If esptool reports "This chip is ESP32-S2, not ESP32", the selected COM port
+//  is not the Feather ESP32 V2 or the wrong board target is selected.
 //
 //  Grid sizing:
 //    MATRIX_W / MATRIX_H in config.h set the MAXIMUM (compile-time) grid.
@@ -22,6 +25,14 @@
 #include <ArduinoJson.h>
 #include <FastLED.h>
 #include <math.h>
+#include <esp_wifi.h>
+#if __has_include(<esp_eap_client.h>)
+#include <esp_eap_client.h>
+#define SENTIO_HAS_EAP_CLIENT 1
+#elif __has_include(<esp_wpa2.h>)
+#include <esp_wpa2.h>
+#define SENTIO_HAS_LEGACY_WPA2 1
+#endif
 #include "config.h"
 
 // =============================================================================
@@ -44,10 +55,19 @@ struct EegState {
   float   gamma      = 0.0f;
   float   delta      = 0.0f;
   float   confidence = 0.0f;
+  float   complexity = 0.2f;
+  float   heartBpm    = 0.0f;
+  float   heartConf   = 0.0f;
   float   signal_q   = 0.0f;   // 0–100
   uint8_t hue        = 96;     // FastLED hue (0-255), default green/neutral
   String  emotion    = "neutral";
+  String  pattern    = "organic";
+  bool    active     = false;
   bool    hasData    = false;
+  CRGB    primary    = CHSV(96, 220, 255);
+  CRGB    secondary  = CHSV(120, 180, 220);
+  CRGB    accent     = CHSV(150, 180, 210);
+  CRGB    shadow     = CRGB(8, 12, 18);
 } state;
 
 // Particles for the Estrelas pattern
@@ -137,14 +157,203 @@ uint8_t emotionToHue(const String& emotion) {
   return 96;                              // green      (~140°) = neutral
 }
 
+CRGB parseHexColor(const char* hex) {
+  if (hex == nullptr) return CRGB::Black;
+
+  const char* value = hex;
+  if (*value == '#') value++;
+  if (strlen(value) != 6) return CRGB::Black;
+
+  char* endPtr = nullptr;
+  long raw = strtol(value, &endPtr, 16);
+  if (endPtr == nullptr || *endPtr != '\0') return CRGB::Black;
+
+  return CRGB((raw >> 16) & 0xFF, (raw >> 8) & 0xFF, raw & 0xFF);
+}
+
+CRGB scaleColor(const CRGB& color, uint8_t amount) {
+  CRGB scaled = color;
+  scaled.nscale8_video(amount);
+  return scaled;
+}
+
+CRGB mixColors(const CRGB& from, const CRGB& to, float amount) {
+  amount = constrain(amount, 0.0f, 1.0f);
+  return blend(from, to, (uint8_t)(amount * 255.0f));
+}
+
+float bandEnergy() {
+  return constrain(
+    state.alpha * 0.22f +
+    state.beta  * 0.30f +
+    state.gamma * 0.24f +
+    state.theta * 0.16f +
+    state.delta * 0.08f,
+    0.0f,
+    1.0f
+  );
+}
+
+float mindIntensity() {
+  float signal = constrain(state.signal_q / 100.0f, 0.0f, 1.0f);
+  float energy = bandEnergy();
+  float heart = constrain(state.heartConf, 0.0f, 1.0f);
+  return constrain(signal * 0.40f + state.confidence * 0.30f + energy * 0.15f + heart * 0.15f, 0.0f, 1.0f);
+}
+
+float heartPulseFactor() {
+  if (state.heartBpm < 40.0f || state.heartConf <= 0.0f) {
+    return 1.0f;
+  }
+
+  uint8_t pulse = beatsin8((uint8_t)constrain(state.heartBpm, 40.0f, 180.0f), 160, 255);
+  float amount = constrain(state.heartConf, 0.0f, 1.0f);
+  return 0.80f + ((pulse / 255.0f) * 0.20f * amount);
+}
+
+CRGB mindStateColor() {
+  float calmWeight = constrain(state.alpha * 0.7f + state.theta * 0.3f, 0.0f, 1.0f);
+  float focusWeight = constrain(state.beta * 0.75f + state.confidence * 0.25f, 0.0f, 1.0f);
+  float exciteWeight = constrain(state.gamma * 0.8f + state.beta * 0.2f, 0.0f, 1.0f);
+
+  CRGB calmColor = mixColors(state.secondary, state.primary, calmWeight);
+  CRGB activeColor = mixColors(state.primary, state.accent, constrain(focusWeight + exciteWeight * 0.4f, 0.0f, 1.0f));
+
+  if (state.emotion == "calm" || state.emotion == "relaxed") {
+    return mixColors(calmColor, state.primary, 0.65f);
+  }
+  if (state.emotion == "focused") {
+    return mixColors(state.primary, state.accent, 0.35f + focusWeight * 0.4f);
+  }
+  if (state.emotion == "stressed" || state.emotion == "excited") {
+    return mixColors(activeColor, state.accent, 0.55f + exciteWeight * 0.3f);
+  }
+  return mixColors(calmColor, activeColor, 0.5f);
+}
+
+void applyMindStateGrade() {
+  float intensity = mindIntensity();
+  float tintAmount = 0.18f + intensity * 0.34f;
+  CRGB tint = mindStateColor();
+  float pulse = heartPulseFactor();
+  uint16_t active = numLeds();
+
+  for (uint16_t index = 0; index < active; index++) {
+    leds[index] = mixColors(leds[index], tint, tintAmount);
+    leds[index] = scaleColor(leds[index], (uint8_t)((70 + intensity * 185) * pulse));
+  }
+}
+
+uint8_t resolveBrightness() {
+  float intensity = mindIntensity();
+  float emotionBias = 0.0f;
+
+  if (state.emotion == "calm" || state.emotion == "relaxed") emotionBias = -0.08f;
+  if (state.emotion == "focused") emotionBias = 0.06f;
+  if (state.emotion == "stressed" || state.emotion == "excited") emotionBias = 0.12f;
+
+  float value = constrain(intensity + emotionBias, 0.18f, 1.0f);
+  value = constrain(value * heartPulseFactor(), 0.18f, 1.0f);
+  return (uint8_t)(MAX_BRIGHTNESS * value);
+}
+
+void setFallbackPalette(const String& emotion) {
+  uint8_t baseHue = emotionToHue(emotion);
+  state.primary   = CHSV(baseHue,      220, 255);
+  state.secondary = CHSV(baseHue + 18, 180, 220);
+  state.accent    = CHSV(baseHue + 36, 150, 210);
+  state.shadow    = scaleColor(CHSV(baseHue + 96, 120, 80), 70);
+}
+
+void applyPalette(JsonArrayConst palette) {
+  if (palette.isNull() || palette.size() == 0) {
+    setFallbackPalette(state.emotion);
+    return;
+  }
+
+  CRGB primary   = parseHexColor(palette[0] | "");
+  CRGB secondary = parseHexColor(palette.size() > 1 ? (palette[1] | "") : "");
+  CRGB accent    = parseHexColor(palette.size() > 2 ? (palette[2] | "") : "");
+  CRGB shadow    = parseHexColor(palette.size() > 3 ? (palette[3] | "") : "");
+
+  state.primary   = primary   == CRGB::Black ? CHSV(state.hue,      220, 255) : primary;
+  state.secondary = secondary == CRGB::Black ? CHSV(state.hue + 18, 180, 220) : secondary;
+  state.accent    = accent    == CRGB::Black ? CHSV(state.hue + 36, 150, 210) : accent;
+  state.shadow    = shadow    == CRGB::Black ? scaleColor(state.primary, 40)  : scaleColor(shadow, 96);
+}
+
+String resolvePattern(JsonVariantConst root) {
+  const char* direct = root["pattern_type"] | nullptr;
+  if (direct != nullptr && strlen(direct) > 0) return String(direct);
+
+  const char* nested = root["config"]["pattern_type"] | nullptr;
+  if (nested != nullptr && strlen(nested) > 0) return String(nested);
+
+  if (state.emotion == "focused") return "geometric";
+  if (state.emotion == "stressed" || state.emotion == "excited") return "textile";
+  if (state.emotion == "calm" || state.emotion == "relaxed") return "fluid";
+  return "organic";
+}
+
+uint8_t resolveGridValue(JsonVariantConst root, const char* key, uint8_t fallback) {
+  if (!root[key].isNull()) {
+    return (uint8_t)(root[key] | (int)fallback);
+  }
+  if (!root["config"][key].isNull()) {
+    return (uint8_t)(root["config"][key] | (int)fallback);
+  }
+  return fallback;
+}
+
+float resolveFloat(JsonVariantConst root, const char* key, float fallback) {
+  if (!root[key].isNull()) {
+    return root[key] | fallback;
+  }
+  if (!root["config"][key].isNull()) {
+    return root["config"][key] | fallback;
+  }
+  return fallback;
+}
+
+void beginWifiConnection() {
+#if WIFI_AUTH_MODE == 1
+  WiFi.begin(WIFI_SSID);
+
+  #if defined(SENTIO_HAS_EAP_CLIENT)
+    esp_eap_client_set_identity((const uint8_t*)WIFI_IDENTITY, strlen(WIFI_IDENTITY));
+    esp_eap_client_set_username((const uint8_t*)WIFI_USERNAME, strlen(WIFI_USERNAME));
+    esp_eap_client_set_password((const uint8_t*)WIFI_PASSWORD, strlen(WIFI_PASSWORD));
+    esp_wifi_sta_enterprise_enable();
+  #elif defined(SENTIO_HAS_LEGACY_WPA2)
+    esp_wifi_sta_wpa2_ent_set_identity((uint8_t*)WIFI_IDENTITY, strlen(WIFI_IDENTITY));
+    esp_wifi_sta_wpa2_ent_set_username((uint8_t*)WIFI_USERNAME, strlen(WIFI_USERNAME));
+    esp_wifi_sta_wpa2_ent_set_password((uint8_t*)WIFI_PASSWORD, strlen(WIFI_PASSWORD));
+    esp_wpa2_config_t config = WPA2_CONFIG_INIT_DEFAULT();
+    esp_wifi_sta_wpa2_ent_enable(&config);
+  #else
+    #error "This ESP32 core does not expose WPA2-Enterprise APIs. Use a core with esp_eap_client.h or esp_wpa2.h support."
+  #endif
+#else
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+#endif
+}
+
+const char* wifiAuthModeLabel() {
+#if WIFI_AUTH_MODE == 1
+  return "WPA2-Enterprise";
+#else
+  return "WPA/WPA2 Personal";
+#endif
+}
+
 // =============================================================================
 //  PATTERN 1 — ONDAS FLUIDAS  (calm / relaxed)
 //  Plasma sine-wave overlay; speed ∝ beta, scale ∝ alpha
 // =============================================================================
 
 void patternFluidWaves() {
-  float speed = 0.6f + state.beta  * 3.0f;
-  float scale = 0.7f + state.alpha * 1.4f;
+  float speed = 0.45f + state.beta * 2.4f + state.complexity * 1.8f;
+  float scale = 0.9f + state.alpha * 1.1f + state.complexity * 1.4f;
   uint32_t t  = millis();
 
   for (uint8_t y = 0; y < gH; y++) {
@@ -155,11 +364,31 @@ void patternFluidWaves() {
       float w1 = sinf(nx * scale * 6.28f + t * 0.001f * speed);
       float w2 = sinf(ny * scale * 6.28f + t * 0.0008f * speed);
       float w3 = sinf((nx + ny) * scale * 4.5f + t * 0.0006f * speed);
-      float v  = (w1 + w2 + w3) / 3.0f;  // -1 … +1
+      float v = ((w1 + w2 + w3) / 3.0f + 1.0f) * 0.5f;
+      CRGB color = mixColors(state.primary, state.secondary, v);
+      color += scaleColor(state.accent, (uint8_t)(40 + v * 80));
+      leds[xy(x, y)] = scaleColor(color, (uint8_t)(90 + v * 150));
+    }
+  }
+}
 
-      uint8_t h   = state.hue + (uint8_t)(v * 28);
-      uint8_t bri = (uint8_t)(130 + v * 90);
-      leds[xy(x, y)] = CHSV(h, 220, bri);
+void patternOrganic() {
+  float speed = 0.30f + state.alpha * 1.6f + state.complexity * 2.2f;
+  float scale = 2.5f + state.complexity * 5.0f;
+  uint32_t t = millis();
+
+  for (uint8_t y = 0; y < gH; y++) {
+    for (uint8_t x = 0; x < gW; x++) {
+      float nx = (float)x / gW;
+      float ny = (float)y / gH;
+      float swirl = sinf((nx * scale + t * 0.0004f * speed) * 6.28f);
+      float drift = cosf((ny * scale - t * 0.0003f * speed) * 6.28f);
+      float bloom = sinf(((nx + ny) * (scale * 0.7f)) * 6.28f + t * 0.0005f * speed);
+      float mix = ((swirl + drift + bloom) / 3.0f + 1.0f) * 0.5f;
+
+      CRGB color = mixColors(state.shadow, state.primary, mix);
+      color = mixColors(color, state.accent, constrain(state.gamma * 0.8f, 0.0f, 1.0f));
+      leds[xy(x, y)] = scaleColor(color, (uint8_t)(45 + mix * 180));
     }
   }
 }
@@ -172,8 +401,8 @@ void patternFluidWaves() {
 void patternGeometric() {
   float cx    = (gW - 1) * 0.5f;
   float cy    = (gH - 1) * 0.5f;
-  float t     = millis() * 0.001f * (0.4f + state.beta * 2.0f);
-  float rings = 5.0f + state.alpha * 5.0f;
+  float t     = millis() * 0.001f * (0.4f + state.beta * 1.8f + state.complexity * 1.4f);
+  float rings = 4.0f + state.alpha * 4.0f + state.complexity * 6.0f;
 
   for (uint8_t y = 0; y < gH; y++) {
     for (uint8_t x = 0; x < gW; x++) {
@@ -185,9 +414,39 @@ void patternGeometric() {
       float v = sinf(r * rings - t * 2.0f + ang * 2.0f);
       v = (v + 1.0f) * 0.5f;
 
-      uint8_t bri = (r < 1.05f) ? (uint8_t)(v * 220 + 20) : 0;
-      uint8_t h   = state.hue + (uint8_t)(v * 36);
-      leds[xy(x, y)] = CHSV(h, 240, bri);
+      if (r >= 1.05f) {
+        leds[xy(x, y)] = state.shadow;
+        continue;
+      }
+
+      CRGB color = mixColors(state.primary, state.accent, v);
+      if (v > 0.65f) {
+        color += scaleColor(state.secondary, (uint8_t)(v * 110));
+      }
+      leds[xy(x, y)] = scaleColor(color, (uint8_t)(40 + v * 200));
+    }
+  }
+}
+
+void patternTextile() {
+  float speed = 0.20f + state.beta * 1.4f + state.complexity * 1.5f;
+  float warpFreq = 4.0f + state.complexity * 10.0f;
+  float weftFreq = 3.0f + state.alpha * 5.0f + state.complexity * 4.0f;
+  uint32_t t = millis();
+
+  for (uint8_t y = 0; y < gH; y++) {
+    for (uint8_t x = 0; x < gW; x++) {
+      float nx = (float)x / gW;
+      float ny = (float)y / gH;
+      float warp = (sinf(nx * warpFreq * 6.28f + t * 0.0008f * speed) + 1.0f) * 0.5f;
+      float weft = (cosf(ny * weftFreq * 6.28f - t * 0.0006f * speed) + 1.0f) * 0.5f;
+      bool over = ((x + y) & 1) == 0;
+
+      CRGB threadA = mixColors(state.primary, state.secondary, warp);
+      CRGB threadB = mixColors(state.shadow, state.accent, weft);
+      CRGB color = over ? mixColors(threadA, threadB, 0.35f) : mixColors(threadB, threadA, 0.35f);
+      float sheen = (warp * 0.55f) + (weft * 0.45f);
+      leds[xy(x, y)] = scaleColor(color, (uint8_t)(55 + sheen * 180));
     }
   }
 }
@@ -200,7 +459,7 @@ void patternGeometric() {
 void patternRhythmicPulse() {
   float cx    = (gW - 1) * 0.5f;
   float cy    = (gH - 1) * 0.5f;
-  float speed = 0.8f + state.beta * 5.0f;
+  float speed = 0.8f + state.beta * 3.2f + state.complexity * 2.0f;
   uint32_t t  = millis();
 
   for (uint8_t y = 0; y < gH; y++) {
@@ -216,10 +475,10 @@ void patternRhythmicPulse() {
       float ring = sinf(dist * 1.6f - t * 0.003f * speed);
       ring = (ring + 1.0f) * 0.5f;
 
-      float v     = cross * 0.55f + ring * 0.45f;
-      uint8_t h   = state.hue + (uint8_t)(ring * 22);
-      uint8_t bri = (uint8_t)(v * 230);
-      leds[xy(x, y)] = CHSV(h, 245, bri);
+      float v = cross * 0.55f + ring * 0.45f;
+      CRGB color = mixColors(state.primary, state.accent, ring);
+      color += scaleColor(state.secondary, (uint8_t)(cross * 90));
+      leds[xy(x, y)] = scaleColor(color, (uint8_t)(v * 230));
     }
   }
 }
@@ -249,16 +508,17 @@ void patternStars() {
 
   for (uint8_t i = 0; i < min(visible, NUM_STARS); i++) {
     uint8_t bri = sin8(t * stars[i].speed + stars[i].phase);
-    uint8_t h   = state.hue + (uint8_t)(i * 5);
-    CRGB    c   = CHSV(h, 200, bri);
+    float amount = (float)(i % 12) / 11.0f;
+    CRGB    c    = scaleColor(mixColors(state.primary, state.accent, amount), bri);
 
     leds[xy(stars[i].x, stars[i].y)] |= c;
     if (bri > 180) {
       uint8_t nx = stars[i].x, ny = stars[i].y;
-      if (nx > 0)        leds[xy(nx-1, ny)] |= CHSV(h, 200, bri >> 2);
-      if (nx < gW - 1)   leds[xy(nx+1, ny)] |= CHSV(h, 200, bri >> 2);
-      if (ny > 0)        leds[xy(nx, ny-1)] |= CHSV(h, 200, bri >> 2);
-      if (ny < gH - 1)   leds[xy(nx, ny+1)] |= CHSV(h, 200, bri >> 2);
+      CRGB glow = scaleColor(state.secondary, bri >> 2);
+      if (nx > 0)        leds[xy(nx-1, ny)] |= glow;
+      if (nx < gW - 1)   leds[xy(nx+1, ny)] |= glow;
+      if (ny > 0)        leds[xy(nx, ny-1)] |= glow;
+      if (ny < gH - 1)   leds[xy(nx, ny+1)] |= glow;
     }
   }
 }
@@ -270,7 +530,7 @@ void patternStars() {
 
 void patternIdle() {
   uint8_t bri = beatsin8(6, 20, 120);
-  fill_solid(leds, numLeds(), CHSV(160, 200, bri));
+  fill_solid(leds, numLeds(), scaleColor(CHSV(160, 200, 255), bri));
 }
 
 // =============================================================================
@@ -278,19 +538,20 @@ void patternIdle() {
 // =============================================================================
 
 void renderFrame() {
-  if (!state.hasData || state.signal_q < SIGNAL_THRESHOLD) {
+  if (!state.hasData || !state.active || state.signal_q < SIGNAL_THRESHOLD) {
+    FastLED.setBrightness(MAX_BRIGHTNESS);
     patternIdle();
   } else {
-    const String& e = state.emotion;
-    if      (e == "calm"     || e == "relaxed")  patternFluidWaves();
-    else if (e == "focused")                     patternGeometric();
-    else if (e == "stressed" || e == "excited")  patternRhythmicPulse();
-    else                                          patternStars();
+    if      (state.pattern == "fluid")      patternFluidWaves();
+    else if (state.pattern == "geometric")  patternGeometric();
+    else if (state.pattern == "textile")    patternTextile();
+    else if (state.pattern == "organic")    patternOrganic();
+    else if (state.emotion == "stressed" || state.emotion == "excited")
+                                              patternRhythmicPulse();
+    else                                      patternStars();
 
-    // Scale brightness by signal quality
-    uint8_t qBri = (uint8_t)map((long)state.signal_q, SIGNAL_THRESHOLD, 100,
-                                 80, MAX_BRIGHTNESS);
-    FastLED.setBrightness(qBri);
+    applyMindStateGrade();
+    FastLED.setBrightness(resolveBrightness());
   }
 
   // Always black-out LEDs outside the active grid
@@ -311,10 +572,11 @@ void onWsEvent(WStype_t type, uint8_t* payload, size_t length) {
     case WStype_DISCONNECTED:
       Serial.println("[WS]  Disconnected — retrying…");
       state.hasData = false;
+      state.active = false;
       break;
 
     case WStype_TEXT: {
-      StaticJsonDocument<896> doc;
+      StaticJsonDocument<1536> doc;
       DeserializationError err = deserializeJson(doc, payload, length);
       if (err) {
         Serial.print("[WS]  JSON error: ");
@@ -333,20 +595,28 @@ void onWsEvent(WStype_t type, uint8_t* payload, size_t length) {
       state.delta      = doc["delta"]          | 0.0f;
       state.confidence = doc["confidence"]     | 0.0f;
       state.signal_q   = doc["signal_quality"] | 0.0f;
+      state.complexity = resolveFloat(doc.as<JsonVariantConst>(), "pattern_complexity", 0.2f);
+      state.heartBpm   = doc["heart_bpm"]      | 0.0f;
+      state.heartConf  = doc["heart_confidence"] | 0.0f;
+      state.active     = (doc["active"] | 1) != 0;
 
       String emo    = doc["emotion"] | "neutral";
       state.emotion = emo;
       state.hue     = emotionToHue(emo);
+      state.pattern = resolvePattern(doc.as<JsonVariantConst>());
+      applyPalette(doc["color_palette"].as<JsonArrayConst>());
       state.hasData = true;
 
       // ── Grid dimensions (set by operator in frontend settings) ────────────
-      uint8_t newW = (uint8_t)(doc["matrix_width"]  | (int)MATRIX_W);
-      uint8_t newH = (uint8_t)(doc["matrix_height"] | (int)MATRIX_H);
+      JsonVariantConst root = doc.as<JsonVariantConst>();
+      uint8_t newW = resolveGridValue(root, "matrix_width", MATRIX_W);
+      uint8_t newH = resolveGridValue(root, "matrix_height", MATRIX_H);
       applyGridSize(newW, newH);
 
-      Serial.printf("[EEG] %-8s  α=%.2f  β=%.2f  θ=%.2f  Q=%.0f  grid=%ux%u\n",
+      Serial.printf("[EEG] %-8s  pattern=%-9s α=%.2f β=%.2f θ=%.2f C=%.2f HR=%.1f Q=%.0f grid=%ux%u\n",
                     emo.c_str(),
-                    state.alpha, state.beta, state.theta, state.signal_q,
+                    state.pattern.c_str(),
+            state.alpha, state.beta, state.theta, state.complexity, state.heartBpm, state.signal_q,
                     gW, gH);
       break;
     }
@@ -374,11 +644,12 @@ void setup() {
   FastLED.show();
 
   initStars();
+  setFallbackPalette(state.emotion);
 
   // ── WiFi ─────────────────────────────────────────────────────────────────
-  Serial.printf("[WiFi] Connecting to %s", WIFI_SSID);
+  Serial.printf("[WiFi] Connecting to %s (%s)", WIFI_SSID, wifiAuthModeLabel());
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  beginWifiConnection();
   while (WiFi.status() != WL_CONNECTED) {
     delay(400);
     Serial.print(".");

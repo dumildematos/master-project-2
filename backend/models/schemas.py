@@ -45,6 +45,7 @@ class SessionConfig(BaseModel):
     serial_port: Optional[str] = Field(default=None, description="Optional serial port for BLED112 or other BrainFlow transports.")
     stream_name: Optional[str] = Field(default=None, description="Optional BlueMuse LSL stream name when multiple EEG streams are available.")
     timeout: int = Field(default=15, ge=1, le=120, description="BrainFlow connection timeout in seconds.")
+    heart_rate_enabled: bool = Field(default=True, description="Enable HeartPy heart-rate estimation when a pulse-like channel is available.")
     matrix_width:  int = Field(default=16, ge=1, le=64, description="LED matrix columns (sent to ESP32 via WebSocket).")
     matrix_height: int = Field(default=16, ge=1, le=64, description="LED matrix rows (sent to ESP32 via WebSocket).")
 
@@ -120,6 +121,8 @@ class StreamConfiguration(BaseModel):
     window_size: int
     update_interval: float
     pattern_type: PatternType
+    heart_rate_enabled: bool = True
+    heart_signal_source: Optional[str] = None
     signal_sensitivity: Optional[float] = None
     noise_control: Optional[float] = None
     osc_enabled: bool
@@ -142,6 +145,8 @@ class BrainStreamMessage(BaseModel):
     delta: float
 
     signal_quality: float
+    heart_bpm: Optional[float] = None
+    heart_confidence: Optional[float] = None
 
     emotion: EmotionType
     confidence: float

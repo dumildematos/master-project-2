@@ -174,6 +174,8 @@ class ManualOscPayload(BaseModel):
     delta:      float = Field(default=0.04, ge=0.0, le=1.0)
     confidence: float = Field(default=0.82, ge=0.0, le=1.0)
     emotion:    str   = Field(default="calm")
+    heart_bpm:  Optional[float] = Field(default=None, ge=30.0, le=220.0)
+    heart_confidence: float = Field(default=1.0, ge=0.0, le=1.0)
 
 
 @router.post("/osc/manual", status_code=200)
@@ -190,6 +192,8 @@ def send_manual_osc(payload: ManualOscPayload):
         "delta":      payload.delta,
         "confidence": payload.confidence,
         "emotion":    payload.emotion,
+        "heart_bpm":  payload.heart_bpm,
+        "heart_confidence": payload.heart_confidence,
         "signal_quality": payload.confidence * 100,
         "active":     1,
     })

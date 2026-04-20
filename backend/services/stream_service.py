@@ -4,6 +4,7 @@ import logging
 from config import settings
 from eeg.muse_connection import MuseConnection
 from eeg.signal_processing import SignalProcessor
+from heart_rate import HeartRateProcessor
 from emotion.emotion_model import EmotionModel
 from models.schemas import PatternType
 from patterns.pattern_mapper import PatternMapper
@@ -13,6 +14,7 @@ from services.session_manager import SessionState, session_manager
 logger = logging.getLogger("sentio.stream")
 
 processor = SignalProcessor(settings.muse_sampling_rate)
+heart_rate_processor = HeartRateProcessor(settings.muse_sampling_rate, settings.heart_rate_window_seconds)
 emotion_model = EmotionModel()
 pattern_mapper = PatternMapper()
 osc_sender = OscStreamSender(
@@ -71,6 +73,8 @@ def _build_stream_config(muse_connection: MuseConnection, pattern_type: PatternT
         "window_size": settings.muse_window_size,
         "update_interval": settings.eeg_update_interval,
         "pattern_type": pattern_type.value,
+        "heart_rate_enabled": bool(session_manager.session_config.get("heart_rate_enabled", True)),
+        "heart_signal_source": muse_connection.heart_signal_source,
         "signal_sensitivity": session_manager.session_config.get("signal_sensitivity"),
         "noise_control": session_manager.session_config.get("noise_control"),
         "matrix_width":  int(session_manager.session_config.get("matrix_width",  16)),
@@ -124,6 +128,7 @@ def _start_stream_runtime(muse_connection: MuseConnection) -> tuple[PatternType,
     )
 
     processor.sampling_rate = int(muse_connection.sampling_rate or settings.muse_sampling_rate)
+    heart_rate_processor.reset(sample_rate=int(muse_connection.sampling_rate or settings.muse_sampling_rate))
     selected_pattern = _get_selected_pattern()
     stream_config = _build_stream_config(muse_connection, selected_pattern)
     session_manager.set_state(SessionState.RUNNING)
@@ -153,7 +158,7 @@ def _compute_signal_quality(features: dict) -> float:
     return round(quality, 1)
 
 
-def _build_stream_message(features, emotion_result, pattern_params, selected_pattern: PatternType, stream_config: dict) -> dict:
+def _build_stream_message(features, emotion_result, pattern_params, selected_pattern: PatternType, stream_config: dict, heart_metrics: dict | None) -> dict:
     stream_config["state"] = session_manager.session_state
     return {
         "timestamp": float(time.time()),
@@ -163,6 +168,8 @@ def _build_stream_message(features, emotion_result, pattern_params, selected_pat
         "theta": float(features["theta"]),
         "delta": float(features["delta"]),
         "signal_quality": _compute_signal_quality(features),
+        "heart_bpm": None if heart_metrics is None else heart_metrics.get("heart_bpm"),
+        "heart_confidence": None if heart_metrics is None else heart_metrics.get("heart_confidence"),
         "emotion": emotion_result.emotion.value,
         "confidence": float(emotion_result.confidence),
         "mindfulness": (
@@ -184,8 +191,25 @@ def _build_stream_message(features, emotion_result, pattern_params, selected_pat
         "pattern_type": selected_pattern.value,
         "matrix_width":  int(stream_config.get("matrix_width",  16)),
         "matrix_height": int(stream_config.get("matrix_height", 16)),
+        "heart_signal_source": stream_config.get("heart_signal_source"),
         "active": 1,
     }
+
+
+def _compute_heart_metrics(muse_connection: MuseConnection, stream_config: dict) -> dict | None:
+    if not stream_config.get("heart_rate_enabled", True):
+        return None
+
+    target_window = max(
+        int((muse_connection.sampling_rate or settings.muse_sampling_rate) * settings.heart_rate_window_seconds),
+        settings.muse_window_size,
+    )
+    signal, sample_rate, source = muse_connection.get_heart_signal(window_size=target_window)
+    stream_config["heart_signal_source"] = source
+    if signal is None or sample_rate is None or sample_rate <= 0:
+        return None
+
+    return heart_rate_processor.update(signal, sample_rate=sample_rate)
 
 
 def _log_frame_progress(message: dict, frames_emitted: int, last_progress_log: float) -> float:
@@ -263,12 +287,14 @@ def _process_stream_iteration(
         eeg_features=features,
         selected_pattern=selected_pattern,
     )
+    heart_metrics = _compute_heart_metrics(muse_connection, stream_config)
     message = _build_stream_message(
         features,
         emotion_result,
         pattern_params,
         selected_pattern,
         stream_config,
+        heart_metrics,
     )
 
     session_manager.set_latest_stream_message(message)

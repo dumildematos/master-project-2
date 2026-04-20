@@ -55,6 +55,17 @@ class MuseConnection:
         self.lsl_stream_type = lsl_stream_type
         self.lsl_resolve_timeout = float(lsl_resolve_timeout)
         self.eeg_channel_indexes = []
+        self.ppg_channel_indexes = []
+        self.ecg_channel_indexes = []
+        self.analog_channel_indexes = []
+        self.heart_channel_indexes = []
+        self.heart_signal_source = None
+
+    def _safe_get_channels(self, resolver) -> list[int]:
+        try:
+            return list(resolver(self.board_id))
+        except Exception:
+            return []
 
     def _get_bluemuse_channel_indexes(self, channel_count: int) -> list[int]:
         # BlueMuse EEG streams can expose extra channels beyond the Muse EEG set.
@@ -125,6 +136,18 @@ class MuseConnection:
             self.board.start_stream(self.stream_buffer_size, "")
             self.sampling_rate = BoardShim.get_sampling_rate(self.board_id)
             self.eeg_channel_indexes = list(BoardShim.get_eeg_channels(self.board_id))
+            self.ppg_channel_indexes = self._safe_get_channels(BoardShim.get_ppg_channels)
+            self.ecg_channel_indexes = self._safe_get_channels(BoardShim.get_ecg_channels)
+            self.analog_channel_indexes = self._safe_get_channels(BoardShim.get_analog_channels)
+            if self.ppg_channel_indexes:
+                self.heart_channel_indexes = self.ppg_channel_indexes
+                self.heart_signal_source = "ppg"
+            elif self.ecg_channel_indexes:
+                self.heart_channel_indexes = self.ecg_channel_indexes
+                self.heart_signal_source = "ecg"
+            elif self.analog_channel_indexes:
+                self.heart_channel_indexes = self.analog_channel_indexes
+                self.heart_signal_source = "analog"
             self.eeg_channels = len(self.eeg_channel_indexes)
             self.active_source = "brainflow"
         except Exception as exc:
@@ -274,6 +297,36 @@ class MuseConnection:
 
         return np.asarray(eeg_data.T, dtype=np.float64)
 
+    def get_heart_signal(self, window_size=512):
+        """
+        Retrieve a pulse-like 1D signal for heart-rate estimation when the board
+        exposes PPG, ECG, or analog channels.
+        """
+        if self.active_source == "bluemuse":
+            return None, None, None
+
+        if not self.is_connected() or not self.heart_channel_indexes:
+            return None, None, self.heart_signal_source
+
+        available_samples = self.board.get_board_data_count()
+        if available_samples <= 0:
+            return None, None, self.heart_signal_source
+
+        sample_count = min(int(window_size), int(available_samples))
+        if sample_count < 64:
+            return None, None, self.heart_signal_source
+
+        board_data = self.board.get_current_board_data(sample_count)
+        if board_data.size == 0:
+            return None, None, self.heart_signal_source
+
+        signal = np.asarray(board_data[self.heart_channel_indexes[0], :], dtype=np.float64)
+        signal = signal[np.isfinite(signal)]
+        if signal.size < 64:
+            return None, None, self.heart_signal_source
+
+        return signal, int(self.sampling_rate or 0), self.heart_signal_source
+
     def get_runtime_diagnostics(self) -> dict:
         diagnostics = {
             "device_source": self.device_source,
@@ -281,6 +334,8 @@ class MuseConnection:
             "sampling_rate": self.sampling_rate,
             "eeg_channels": self.eeg_channels,
             "eeg_channel_indexes": self.eeg_channel_indexes,
+            "heart_signal_source": self.heart_signal_source,
+            "heart_channel_indexes": self.heart_channel_indexes,
         }
 
         if self.active_source == "bluemuse":

@@ -36,6 +36,7 @@ class Settings(BaseSettings):
 
     # EEG processing
     eeg_update_interval: float = 0.2  # seconds between WebSocket updates
+    heart_rate_window_seconds: float = 8.0
 
     # Calibration
     calibration_duration: int = 5  # seconds for baseline

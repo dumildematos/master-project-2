@@ -130,28 +130,27 @@ export const BrainProvider = ({ children }: { children: ReactNode }) => {
   const [calibration, setCalibration] = useState<CalibrationConfig | null>(null);
   const [brainData, setBrainData] = useState<BrainData | null>(null);
 
+  // Open the WebSocket as soon as the provider mounts — no calibration gate.
+  // Calibration data is used for display/metadata only, not to control data flow.
   useEffect(() => {
     let ws: WebSocket | null = null;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
 
-    if (!calibration) {
-      // No calibration yet — clear any stale data and do nothing.
-      setBrainData(null);
-      return () => { cancelled = true; };
-    }
-
     function connect() {
       if (cancelled) return;
 
-      ws = new WebSocket(brainStreamUrl);
+      const url = brainStreamUrl
+        ?? `${(localStorage.getItem("sentioApiUrl") ?? "http://localhost:8000").replace(/^http/, "ws")}/ws/brain-stream`;
+
+      ws = new WebSocket(url);
 
       ws.onmessage = (event) => {
         if (cancelled) return;
         try {
           const payload = JSON.parse(event.data) as Record<string, unknown>;
           // Skip heartbeat / non-EEG control frames — same guard as useWebSocket.ts
-          if ((payload as Record<string, unknown>)?.type === "heartbeat") return;
+          if (payload?.type === "heartbeat" || payload?.status === "waiting") return;
           setBrainData((previous) => parseBrainStreamPayload(payload, previous));
         } catch (error) {
           console.error("Failed to parse brain stream payload", error);
@@ -160,9 +159,7 @@ export const BrainProvider = ({ children }: { children: ReactNode }) => {
 
       ws.onclose = () => {
         if (cancelled) return;
-        // Clear data so the UI shows "waiting" state instead of stale values.
-        setBrainData(null);
-        // Retry the connection — do NOT pump fake data.
+        // Retry automatically — keep last brainData so UI doesn't flash to zeros.
         retryTimeout = setTimeout(connect, WS_RETRY_DELAY_MS);
       };
 
@@ -176,7 +173,7 @@ export const BrainProvider = ({ children }: { children: ReactNode }) => {
       if (retryTimeout) clearTimeout(retryTimeout);
       ws?.close();
     };
-  }, [calibration]);
+  }, []);
 
   const value = useMemo(
     () => ({ calibration, setCalibration, brainData, setBrainData }),
