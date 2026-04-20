@@ -6,15 +6,20 @@
 // ── LED matrix ───────────────────────────────────────────────────────────────
 #define LED_PIN         5          // ESP32 GPIO connected to WS2812B DIN
 
-// MATRIX_W / MATRIX_H define the MAXIMUM physical size of the panel.
-// They are used only to allocate the leds[] array at compile time.
+// MATRIX_W / MATRIX_H set the PHYSICAL maximum of your LED panel.
+// Set these to the actual number of columns and rows you have soldered.
+// They are used only to allocate the leds[] array at compile time — the
+// runtime grid is controlled from the frontend (8×8 / 16×16 / 32×32 /
+// 64×64 / Fit) and arrives via WebSocket; the sketch applies it immediately
+// without a reflash.  Values larger than MATRIX_W / MATRIX_H are clamped.
 //
-// At runtime the backend streams matrix_width and matrix_height in every
-// WebSocket frame (set by the operator in the frontend settings panel).
-// The sketch applies those values immediately — no reflash needed.
-// Values received from the backend are clamped to [1, MATRIX_W] / [1, MATRIX_H].
-#define MATRIX_W        16         // maximum columns  (compile-time allocation)
-#define MATRIX_H        16         // maximum rows     (compile-time allocation)
+// Example physical panels:
+//   8×8   →  MATRIX_W 8,  MATRIX_H 8   (64 LEDs)
+//   16×16 →  MATRIX_W 16, MATRIX_H 16  (256 LEDs)  ← default
+//   10×20 →  MATRIX_W 20, MATRIX_H 10  (200 LEDs, Assembly Manual panel)
+//   32×32 →  MATRIX_W 32, MATRIX_H 32  (1024 LEDs — needs 5 V / 20 A supply)
+#define MATRIX_W        16         // physical columns  (compile-time allocation)
+#define MATRIX_H        16         // physical rows     (compile-time allocation)
 #define NUM_LEDS        (MATRIX_W * MATRIX_H)  // compile-time max LED count
 
 // Wiring direction: set true if LED 0 is at BOTTOM-left of the matrix

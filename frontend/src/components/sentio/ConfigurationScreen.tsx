@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { motion } from "framer-motion";
 import { Brain, ChevronRight } from "lucide-react";
-import type { SessionConfig } from "@/pages/Index";
+import type { SessionConfig, GridSize } from "@/pages/Index";
 import React from "react";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
@@ -14,6 +14,27 @@ const patternTypes = [
 ];
 
 const genders = ["Female", "Male", "Non-binary", "Prefer not to say"];
+
+// Grid size presets — "fit" uses the physical hardware max stored in settings
+const GRID_PRESETS: { id: GridSize; label: string; w: number; h: number }[] = [
+  { id: "8x8",   label: "8 × 8",   w: 8,  h: 8  },
+  { id: "16x16", label: "16 × 16", w: 16, h: 16 },
+  { id: "32x32", label: "32 × 32", w: 32, h: 32 },
+  { id: "64x64", label: "64 × 64", w: 64, h: 64 },
+  { id: "fit",   label: "Fit",     w: 0,  h: 0  },
+];
+
+/** Resolve actual matrix dimensions for a given grid size preset. */
+function resolveGrid(gridSize: GridSize): { w: number; h: number } {
+  if (gridSize === "fit") {
+    return {
+      w: Number(localStorage.getItem("matrixWidth")  || 16),
+      h: Number(localStorage.getItem("matrixHeight") || 16),
+    };
+  }
+  const preset = GRID_PRESETS.find((p) => p.id === gridSize);
+  return { w: preset?.w ?? 16, h: preset?.h ?? 16 };
+}
 
 interface Props {
   config: SessionConfig;
@@ -64,8 +85,8 @@ const ConfigurationScreen = ({ config, setConfig, onStart }: Props) => {
           signal_sensitivity: config.sensitivity / 100,
           noise_control: 1,
           mac_address: macAddress || undefined,
-          matrix_width:  Number(localStorage.getItem("matrixWidth")  || 16),
-          matrix_height: Number(localStorage.getItem("matrixHeight") || 16),
+          matrix_width:  resolveGrid(config.gridSize).w,
+          matrix_height: resolveGrid(config.gridSize).h,
         }),
       });
       if (!response.ok) {
@@ -367,6 +388,49 @@ const ConfigurationScreen = ({ config, setConfig, onStart }: Props) => {
           </div>
         </div>
 
+        {/* LED Grid Size */}
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <label className="text-sm text-muted-foreground font-mono">LED Grid Size</label>
+            {config.gridSize !== "fit" && (
+              <span className="text-xs font-mono text-primary">
+                {resolveGrid(config.gridSize).w * resolveGrid(config.gridSize).h} LEDs
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-5 gap-2">
+            {GRID_PRESETS.map((preset) => {
+              const active = config.gridSize === preset.id;
+              const ledCount = preset.id !== "fit"
+                ? preset.w * preset.h
+                : null;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => setConfig({ ...config, gridSize: preset.id })}
+                  className={`relative flex flex-col items-center justify-center gap-1.5 rounded-xl py-3 px-1 border transition-all ${
+                    active
+                      ? "bg-primary/10 border-primary/60 shadow-[0_0_12px_hsl(187_80%_55%/0.2)]"
+                      : "bg-muted/20 border-border/30 hover:border-border/60"
+                  }`}
+                >
+                  {/* Mini grid preview */}
+                  <GridPreview size={preset.id} active={active} />
+                  <span className={`text-xs font-mono font-semibold leading-none ${active ? "text-primary" : "text-foreground"}`}>
+                    {preset.label}
+                  </span>
+                  {ledCount !== null && (
+                    <span className="text-[10px] font-mono text-muted-foreground leading-none">
+                      {ledCount >= 1000 ? `${(ledCount / 1000).toFixed(1)}k` : ledCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Sensitivity */}
         <div className="space-y-3">
           <div className="flex justify-between items-center">
@@ -398,6 +462,65 @@ const ConfigurationScreen = ({ config, setConfig, onStart }: Props) => {
         </button>
       </motion.div>
     </motion.div>
+  );
+};
+
+// ── Grid dot-matrix preview (SVG) ────────────────────────────────────────────
+const GridPreview = ({ size, active }: { size: GridSize; active: boolean }) => {
+  const color = active ? "hsl(187 80% 55%)" : "hsl(220 15% 30%)";
+  const glowColor = active ? "hsl(187 80% 55% / 0.5)" : "transparent";
+
+  if (size === "fit") {
+    // Show an expand/arrows icon
+    return (
+      <svg viewBox="0 0 32 32" width="32" height="32">
+        <rect width="32" height="32" fill="none" />
+        {/* corner arrows */}
+        <polyline points="2,10 2,2 10,2"   fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points="22,2 30,2 30,10"  fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points="30,22 30,30 22,30" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points="10,30 2,30 2,22"  fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  // Dot-grid — show up to 6×6 dots regardless of actual count, scale fill
+  const cols = size === "8x8" ? 4 : size === "16x16" ? 5 : 6;
+  const rows = cols;
+  const step = 32 / (cols + 1);
+  const r    = size === "64x64" ? 1.4 : size === "32x32" ? 1.8 : size === "16x16" ? 2.2 : 2.8;
+
+  const dots: { cx: number; cy: number; lit: boolean }[] = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      // Randomly (but deterministically) light ~60% of dots for visual interest
+      const lit = ((row * cols + col) * 7 + row * 3) % 10 < 6;
+      dots.push({ cx: step * (col + 1), cy: step * (row + 1), lit });
+    }
+  }
+
+  return (
+    <svg viewBox="0 0 32 32" width="32" height="32">
+      <defs>
+        <filter id={`glow-${size}`} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="1.5" result="blur" />
+          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+      {dots.map(({ cx, cy, lit }, i) => (
+        <circle
+          key={i}
+          cx={cx} cy={cy} r={r}
+          fill={lit ? color : "hsl(220 15% 18%)"}
+          filter={lit && active ? `url(#glow-${size})` : undefined}
+          opacity={lit ? 1 : 0.5}
+        />
+      ))}
+      {active && (
+        <rect x="1" y="1" width="30" height="30" rx="4"
+          fill="none" stroke={glowColor} strokeWidth="1" opacity="0.4" />
+      )}
+    </svg>
   );
 };
 

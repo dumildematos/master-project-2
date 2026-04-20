@@ -5,11 +5,14 @@ import CalibrationScreen from "@/components/sentio/CalibrationScreen";
 import MonitoringScreen from "@/components/sentio/MonitoringScreen";
 import PatternScreen from "@/components/sentio/PatternScreen";
 
+export type GridSize = "8x8" | "16x16" | "32x32" | "64x64" | "fit";
+
 export type SessionConfig = {
   age: string;
   gender: string;
   patternType: string;
   sensitivity: number;
+  gridSize: GridSize;
 };
 
 export type AppScreen = "config" | "calibration" | "monitoring" | "pattern";
@@ -21,6 +24,7 @@ const Index = () => {
     gender: "",
     patternType: "organic",
     sensitivity: 50,
+    gridSize: "16x16",
   });
 
   return (

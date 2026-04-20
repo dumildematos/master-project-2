@@ -99,18 +99,27 @@ void clearInactiveLeds() {
 }
 
 // Apply a new grid size received from the backend.
+// Values are clamped to the physical hardware max (MATRIX_W × MATRIX_H).
 // Re-randomises stars so they stay within the new bounds.
 void applyGridSize(uint8_t newW, uint8_t newH) {
-  if (newW == gW && newH == gH) return;          // no change
-  gW = constrain(newW, 1, MATRIX_W);
-  gH = constrain(newH, 1, MATRIX_H);
-  Serial.printf("[GRID] Updated to %u x %u  (%u LEDs)\n", gW, gH, numLeds());
-  // Re-init stars so they stay within the new bounds
+  uint8_t clampedW = constrain(newW, 1, MATRIX_W);
+  uint8_t clampedH = constrain(newH, 1, MATRIX_H);
+  if (clampedW == gW && clampedH == gH) return;  // no change — skip redraw
+
+  if (newW > MATRIX_W || newH > MATRIX_H) {
+    Serial.printf("[GRID] Requested %u x %u exceeds hardware max %u x %u — clamped\n",
+                  newW, newH, MATRIX_W, MATRIX_H);
+  }
+  gW = clampedW;
+  gH = clampedH;
+  Serial.printf("[GRID] Active grid: %u x %u  (%u LEDs)\n", gW, gH, numLeds());
+
+  // Re-scatter stars within new bounds
   for (uint8_t i = 0; i < NUM_STARS; i++) {
     stars[i].x = random(gW);
     stars[i].y = random(gH);
   }
-  // Clear the whole buffer — old pixel data outside new grid looks wrong
+  // Clear entire buffer so pixels outside the new grid don't linger
   fill_solid(leds, NUM_LEDS, CRGB::Black);
   FastLED.show();
 }
