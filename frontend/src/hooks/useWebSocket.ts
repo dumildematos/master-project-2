@@ -205,6 +205,8 @@ export function useWebSocket() {
       ws.onclose = () => {
         if (cancelled) return;
         setConnected(false);
+        // Keep the last known band values so the UI doesn't flash to zeros on
+        // a transient drop — only clear hasSignal so the WAITING badge shows.
         setHasSignal(false);
         setTimeout(connect, 2000);
       };

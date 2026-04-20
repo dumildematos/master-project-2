@@ -218,7 +218,32 @@ export default function MonitoringScreen({ config, onBack }: Props) {
           }`}>
             <EEGChart historyRef={historyRef} />
           </div>
-          <BandCards bands={display.bands} />
+          {/* No-signal banner — shown when connected but no EEG stream yet */}
+          {!hasSignal && !manual.isManual && connected && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl
+                border border-amber-500/30 bg-amber-500/5 text-sm"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="text-amber-400 text-base">⚠</span>
+                <span className="mono text-xs text-amber-300/80">
+                  No EEG stream — backend connected but waiting for device data.
+                </span>
+              </div>
+              <button
+                onClick={handleToggleManual}
+                className="shrink-0 mono text-[10px] font-medium px-3 py-1.5 rounded-lg
+                  border border-amber-500/40 text-amber-300 hover:bg-amber-500/10
+                  transition-colors whitespace-nowrap"
+              >
+                Try Manual Mode →
+              </button>
+            </motion.div>
+          )}
+
+          <BandCards bands={display.bands} hasSignal={manual.isManual || hasSignal} />
 
           <div className="glass-card px-5 py-3 flex items-center justify-between">
             <div className="flex items-center gap-6">
