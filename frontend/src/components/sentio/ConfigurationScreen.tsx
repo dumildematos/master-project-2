@@ -61,9 +61,11 @@ const ConfigurationScreen = ({ config, setConfig, onStart }: Props) => {
           age: config.age,
           gender: config.gender,
           pattern_type: config.patternType,
-          signal_sensitivity: config.sensitivity / 100, // Convert to 0-1 range
+          signal_sensitivity: config.sensitivity / 100,
           noise_control: 1,
-          mac_address: macAddress || undefined, // 
+          mac_address: macAddress || undefined,
+          matrix_width:  Number(localStorage.getItem("matrixWidth")  || 16),
+          matrix_height: Number(localStorage.getItem("matrixHeight") || 16),
         }),
       });
       if (!response.ok) {

@@ -5,9 +5,17 @@
 
 // ── LED matrix ───────────────────────────────────────────────────────────────
 #define LED_PIN         5          // ESP32 GPIO connected to WS2812B DIN
-#define MATRIX_W        16         // number of columns
-#define MATRIX_H        16         // number of rows
-#define NUM_LEDS        (MATRIX_W * MATRIX_H)
+
+// MATRIX_W / MATRIX_H define the MAXIMUM physical size of the panel.
+// They are used only to allocate the leds[] array at compile time.
+//
+// At runtime the backend streams matrix_width and matrix_height in every
+// WebSocket frame (set by the operator in the frontend settings panel).
+// The sketch applies those values immediately — no reflash needed.
+// Values received from the backend are clamped to [1, MATRIX_W] / [1, MATRIX_H].
+#define MATRIX_W        16         // maximum columns  (compile-time allocation)
+#define MATRIX_H        16         // maximum rows     (compile-time allocation)
+#define NUM_LEDS        (MATRIX_W * MATRIX_H)  // compile-time max LED count
 
 // Wiring direction: set true if LED 0 is at BOTTOM-left of the matrix
 // (flip so patterns appear upright when worn)

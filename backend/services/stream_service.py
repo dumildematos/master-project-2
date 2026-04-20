@@ -73,6 +73,8 @@ def _build_stream_config(muse_connection: MuseConnection, pattern_type: PatternT
         "pattern_type": pattern_type.value,
         "signal_sensitivity": session_manager.session_config.get("signal_sensitivity"),
         "noise_control": session_manager.session_config.get("noise_control"),
+        "matrix_width":  int(session_manager.session_config.get("matrix_width",  16)),
+        "matrix_height": int(session_manager.session_config.get("matrix_height", 16)),
         "osc_enabled": settings.osc_enabled,
         "osc_host": settings.osc_host,
         "osc_port": settings.osc_port,
@@ -180,6 +182,8 @@ def _build_stream_message(features, emotion_result, pattern_params, selected_pat
         "age": stream_config.get("age"),
         "gender": stream_config.get("gender"),
         "pattern_type": selected_pattern.value,
+        "matrix_width":  int(stream_config.get("matrix_width",  16)),
+        "matrix_height": int(stream_config.get("matrix_height", 16)),
         "active": 1,
     }
 
