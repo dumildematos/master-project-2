@@ -1,11 +1,18 @@
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """
     Global configuration for Sentio backend.
+    Reads values from environment variables and the backend/.env file.
     """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     # FastAPI / server
     app_name: str = "Sentio EEG Backend"
@@ -54,6 +61,11 @@ class Settings(BaseSettings):
     # WebSocket
     ws_endpoint: str = "/ws/brain-stream"
 
+    # Claude AI guidance
+    # Set ANTHROPIC_API_KEY in backend/.env — falls back to static strings when absent
+    anthropic_api_key: str | None = None
+    guidance_model: str = "claude-haiku-4-5"
+    guidance_cache_ttl: float = 20.0   # seconds before re-fetching for the same state
 
 
 # Single global settings instance
