@@ -983,6 +983,195 @@
       footer { padding: 24px 20px; }
       .stat-item { min-width: 50%; border-bottom: 1px solid var(--border); }
     }
+
+    /* ──────────────────────────────
+       AI GUIDANCE
+    ────────────────────────────── */
+    .aig-hero {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: start;
+      margin-top: 56px;
+    }
+    @media (max-width: 860px) {
+      .aig-hero { grid-template-columns: 1fr; }
+    }
+
+    .aig-how-title {
+      font-size: 11px;
+      font-family: monospace;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .aig-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .aig-step {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .aig-step-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: hsl(310 70% 62% / 0.12);
+      border: 1px solid hsl(310 70% 62% / 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-family: monospace;
+      font-weight: 700;
+      color: hsl(310,70%,72%);
+    }
+    .aig-step-text {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+      padding-top: 4px;
+    }
+    .aig-step-text strong { color: var(--text); }
+
+    /* Live output terminal */
+    .aig-terminal {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .aig-terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: hsl(0 0% 100% / 0.02);
+    }
+    .aig-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .aig-terminal-label {
+      font-size: 10px;
+      font-family: monospace;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin-left: auto;
+    }
+    .aig-messages {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .aig-msg {
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      line-height: 1.5;
+      position: relative;
+    }
+    .aig-msg-emotion {
+      font-size: 10px;
+      font-family: monospace;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      opacity: 0.75;
+    }
+    .aig-msg.calm    { background: hsl(200 70% 55% / 0.08); border: 1px solid hsl(200 70% 55% / 0.2); color: hsl(200,70%,75%); }
+    .aig-msg.focused { background: hsl(38 92% 55% / 0.08);  border: 1px solid hsl(38 92% 55% / 0.2);  color: hsl(38,92%,72%);  }
+    .aig-msg.creative{ background: hsl(262 70% 65% / 0.08); border: 1px solid hsl(262 70% 65% / 0.2); color: hsl(262,70%,78%); }
+    .aig-msg.excited { background: hsl(310 70% 62% / 0.08); border: 1px solid hsl(310 70% 62% / 0.2); color: hsl(310,70%,75%); }
+
+    /* Unit connection grid */
+    .aig-units {
+      margin-top: 56px;
+    }
+    .aig-units-title {
+      font-size: 11px;
+      font-family: monospace;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+    .aig-unit-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 900px) {
+      .aig-unit-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 500px) {
+      .aig-unit-grid { grid-template-columns: 1fr; }
+    }
+    .aig-unit-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .aig-unit-card:hover {
+      transform: translateY(-2px);
+    }
+    .aig-unit-icon { font-size: 22px; margin-bottom: 10px; }
+    .aig-unit-name {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    .aig-unit-role {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .aig-unit-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-family: monospace;
+      letter-spacing: 1px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-bottom: 8px;
+    }
+
+    /* Importance block */
+    .aig-importance {
+      margin-top: 48px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    @media (max-width: 860px) {
+      .aig-importance { grid-template-columns: 1fr; }
+    }
+    .aig-imp-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+    .aig-imp-icon { font-size: 24px; margin-bottom: 12px; }
+    .aig-imp-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    .aig-imp-text {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
   </style>
 </head>
 <body>
@@ -1007,6 +1196,7 @@
     <li><a href="#stack">STACK</a></li>
     <li><a href="#units">UNITS</a></li>
     <li><a href="#faq">FAQ</a></li>
+    <li><a href="#ai-guidance">AI GUIDE</a></li>
     <li><a href="#team">TEAM</a></li>
   </ul>
   <a href="https://github.com/dumildematos/master-project-2" class="nav-cta" target="_blank" rel="noopener">
@@ -1511,7 +1701,7 @@
         <div class="unit-applied-points">
           <div class="unit-point">The <strong>pattern mapper</strong> generates unique LED animations per frame — colour palette, complexity, and seed all driven by live EEG values, never repeating the same output.</div>
           <div class="unit-point">Four generative modes — <strong>Fluid Waves, Geometric Rings, Rhythmic Pulse, Star Field</strong> — each procedurally shaped by band power in real time.</div>
-          <div class="unit-point">On every streamed frame the system produces an <strong>AI guidance sentence</strong> — a short natural-language message that reflects the detected emotion and tells the wearer what the garment is doing and why (e.g. <em>"You're calm. Maintain this state to deepen the slow flowing visuals."</em>). This closes the generative loop: the AI does not only drive the light output, it narrates its own decisions back to the human in real time.</div>
+          <div class="unit-point">On every streamed frame the system produces an <strong>AI guidance sentence</strong> via Claude claude-haiku-4-5 — a short natural-language message that reflects the detected emotion and tells the wearer what the garment is doing and why (e.g. <em>"Your calm mind breathes in slow indigo tides across the fabric."</em>). This closes the generative loop: the AI does not only drive the light output, it narrates its own decisions back to the human in real time. <a href="#ai-guidance" style="color:hsl(310,70%,72%);white-space:nowrap">Learn how →</a></div>
         </div>
       </div>
     </div>
@@ -1627,6 +1817,134 @@
 
 <div class="full-divider"></div>
 
+<!-- ── AI Guidance ── -->
+<section id="ai-guidance">
+  <div class="section-tag">Claude AI · claude-haiku-4-5</div>
+  <h2 class="section-title fade-in">AI Guidance<br><span style="color:hsl(310,70%,72%)">in real time</span></h2>
+  <p class="section-sub fade-in">On every EEG frame Sentio generates a personalised one-sentence message for the wearer — describing their detected brain state and poetically narrating what the garment light is doing right now. It is the system speaking back to the human.</p>
+
+  <div class="aig-hero fade-in">
+
+    <!-- Left: how it works steps -->
+    <div>
+      <div class="aig-how-title">How it works</div>
+      <div class="aig-steps">
+        <div class="aig-step">
+          <div class="aig-step-num">1</div>
+          <div class="aig-step-text">The backend reads a 50 ms EEG window from the Muse 2 headband and extracts <strong>alpha, beta, theta, gamma, delta</strong> band powers, plus the detected emotion and confidence score.</div>
+        </div>
+        <div class="aig-step">
+          <div class="aig-step-num">2</div>
+          <div class="aig-step-text">A structured prompt is assembled with the live brain-state metrics and sent to <strong>Claude claude-haiku-4-5</strong> via the Anthropic API — requesting exactly one sentence using light and nature metaphors.</div>
+        </div>
+        <div class="aig-step">
+          <div class="aig-step-num">3</div>
+          <div class="aig-step-text">The call runs in a <strong>background daemon thread</strong> — it never blocks the 20 fps stream loop. The result is cached per <em>(emotion, confidence bucket)</em> with a 20-second TTL so the same state does not re-query Claude on every frame.</div>
+        </div>
+        <div class="aig-step">
+          <div class="aig-step-num">4</div>
+          <div class="aig-step-text">The guidance sentence is embedded as an <strong><code>ai_guidance</code> field in every WebSocket frame</strong> sent to the frontend. React renders it live in the dashboard overlay — updated automatically as the brain state changes.</div>
+        </div>
+        <div class="aig-step">
+          <div class="aig-step-num">5</div>
+          <div class="aig-step-text">When no API key is configured the system <strong>falls back silently</strong> to static emotion-preset copy — no errors, no broken UI, the feature is simply opt-in.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: example outputs terminal -->
+    <div class="aig-terminal">
+      <div class="aig-terminal-bar">
+        <div class="aig-dot" style="background:#ff5f57"></div>
+        <div class="aig-dot" style="background:#ffbd2e"></div>
+        <div class="aig-dot" style="background:#28c840"></div>
+        <span class="aig-terminal-label">LIVE GUIDANCE OUTPUT</span>
+      </div>
+      <div class="aig-messages">
+        <div class="aig-msg calm">
+          <div class="aig-msg-emotion">😌 Calm · 81% confidence</div>
+          Your serene calm breathes in slow indigo tides that drift across the fabric like deep ocean swells
+        </div>
+        <div class="aig-msg focused">
+          <div class="aig-msg-emotion">🎯 Focused · 76% confidence</div>
+          Your sharp focus burns as golden threads weaving faster through the weave, tracing every clear thought
+        </div>
+        <div class="aig-msg creative">
+          <div class="aig-msg-emotion">🌀 Creative · 68% confidence</div>
+          Your imaginative mind swirls violet sparks into blooming arcs that pulse with each new idea
+        </div>
+        <div class="aig-msg excited">
+          <div class="aig-msg-emotion">⚡ Excited · 79% confidence</div>
+          Your bright excitement sends rose-pink bursts rippling outward in rapid constellation flares
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /aig-hero -->
+
+  <!-- Unit connections -->
+  <div class="aig-units fade-in">
+    <div class="aig-units-title">How it connects to the semester units</div>
+    <div class="aig-unit-grid">
+
+      <div class="aig-unit-card" style="border-color:hsl(310 70% 62% / 0.35)">
+        <div class="aig-unit-icon">✨</div>
+        <div class="aig-unit-badge" style="background:hsl(310 70% 62%/0.12);border:1px solid hsl(310 70% 62%/0.3);color:hsl(310,70%,72%)">PRIMARY</div>
+        <div class="aig-unit-name" style="color:hsl(310,70%,72%)">Generative AI</div>
+        <div class="aig-unit-role">The entire guidance pipeline is an applied generative AI system — a live prompt is constructed from numeric sensor data and a language model synthesises a novel creative sentence that has never existed before.</div>
+      </div>
+
+      <div class="aig-unit-card" style="border-color:hsl(187 80% 55% / 0.35)">
+        <div class="aig-unit-icon">🧠</div>
+        <div class="aig-unit-badge" style="background:hsl(187 80% 55%/0.12);border:1px solid hsl(187 80% 55%/0.3);color:hsl(187,80%,65%)">INFERENCE</div>
+        <div class="aig-unit-name" style="color:hsl(187,80%,65%)">Applied Deep Learning</div>
+        <div class="aig-unit-role">The emotion label and band-power values fed into the prompt are produced by real-time neural inference on raw EEG — the AI guidance is only as meaningful as the deep learning pipeline beneath it.</div>
+      </div>
+
+      <div class="aig-unit-card" style="border-color:hsl(262 70% 65% / 0.35)">
+        <div class="aig-unit-icon">🎨</div>
+        <div class="aig-unit-badge" style="background:hsl(262 70% 65%/0.12);border:1px solid hsl(262 70% 65%/0.3);color:hsl(262,70%,78%)">FEEDBACK</div>
+        <div class="aig-unit-name" style="color:hsl(262,70%,78%)">Interface &amp; Interaction Design</div>
+        <div class="aig-unit-role">The guidance text is the final leg of the feedback loop — the system reads the brain, drives the garment, and then tells the wearer what it is doing and why, making the invisible legible.</div>
+      </div>
+
+      <div class="aig-unit-card" style="border-color:hsl(38 92% 58% / 0.35)">
+        <div class="aig-unit-icon">⚡</div>
+        <div class="aig-unit-badge" style="background:hsl(38 92% 58%/0.12);border:1px solid hsl(38 92% 58%/0.3);color:hsl(38,92%,65%)">CONVERGENCE</div>
+        <div class="aig-unit-name" style="color:hsl(38,92%,65%)">Emerging Technologies</div>
+        <div class="aig-unit-role">Combining a consumer BCI, edge IoT hardware, and a frontier LLM into a single 50 ms pipeline is exactly the kind of unexpected technology convergence the unit foregrounds as a design space.</div>
+      </div>
+
+    </div>
+  </div><!-- /aig-units -->
+
+  <!-- Why it matters -->
+  <div class="aig-importance fade-in">
+
+    <div class="aig-imp-card">
+      <div class="aig-imp-icon">🔁</div>
+      <div class="aig-imp-title">Closes the human–AI loop</div>
+      <div class="aig-imp-text">Most biosignal systems are one-directional: they sense, they output, they stop. AI guidance adds a return channel — the system explains its own reasoning back to the person wearing it, turning passive output into a conversation.</div>
+    </div>
+
+    <div class="aig-imp-card">
+      <div class="aig-imp-icon">🪄</div>
+      <div class="aig-imp-title">Makes the garment legible</div>
+      <div class="aig-imp-text">LED patterns communicate through colour and movement — but a bystander cannot know what they mean. A guidance sentence makes the garment readable: it grounds the abstract visual output in language anyone can understand.</div>
+    </div>
+
+    <div class="aig-imp-card">
+      <div class="aig-imp-icon">⚙️</div>
+      <div class="aig-imp-title">Zero latency impact</div>
+      <div class="aig-imp-text">Because every Claude call runs in a daemon thread and results are cached, the 20 fps EEG stream is never delayed by an LLM round-trip. The feature costs nothing in latency when the cache is warm, and gracefully degrades to static copy when the key is absent.</div>
+    </div>
+
+  </div><!-- /aig-importance -->
+
+</section>
+
+<div class="full-divider"></div>
+
 <!-- ── CTA ── -->
 <div class="cta-block">
   <h2 class="fade-in">Open source &amp;<br>fully documented</h2>
@@ -1650,6 +1968,7 @@
     <a href="https://github.com/dumildematos/master-project-2/tree/main/backend" target="_blank" rel="noopener">Backend</a>
     <a href="https://github.com/dumildematos/master-project-2/tree/main/frontend" target="_blank" rel="noopener">Frontend</a>
     <a href="https://github.com/dumildematos/master-project-2/tree/main/arduino" target="_blank" rel="noopener">Arduino</a>
+    <a href="#ai-guidance">AI Guide</a>
     <a href="#team">Team</a>
     <a href="https://www.iade.europeia.pt/en/postgraduate-programs/master-creative-computing-artificial-intelligence/" target="_blank" rel="noopener">IADE</a>
   </div>
