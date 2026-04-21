@@ -2,8 +2,7 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useBrainContext } from "../../context/BrainContext";
 import { Brain } from "lucide-react";
-
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+import { resolveApiBaseUrl } from "../../lib/runtimeConfig";
 
 const steps = [
   { label: "Connecting to device", duration: 2000 },
@@ -17,6 +16,7 @@ interface Props {
 
 
 const CalibrationScreen = ({ onComplete }: Props) => {
+  const apiBaseUrl = resolveApiBaseUrl();
   const [stepIndex, setStepIndex] = useState(0);
   const [preProgress, setPreProgress] = useState(0); // progress before API call
   const [calibrationData, setCalibrationData] = useState<null | {

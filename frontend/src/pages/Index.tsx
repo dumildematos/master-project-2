@@ -10,6 +10,7 @@ export type SessionConfig = {
   gender: string;
   patternType: string;
   sensitivity: number;
+  smoothing: number;
 };
 
 export type AppScreen = "config" | "calibration" | "monitoring" | "pattern";
@@ -21,6 +22,7 @@ const Index = () => {
     gender: "",
     patternType: "organic",
     sensitivity: 50,
+    smoothing: 50,
   });
 
   return (

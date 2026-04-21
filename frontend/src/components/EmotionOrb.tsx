@@ -1,14 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-
-const EMOTION_META: Record<string, { hue: number; label: string; colorClass: string }> = {
-  calm:       { hue: 210, label: "CALM",       colorClass: "glow-text-cyan"    },
-  meditative: { hue: 270, label: "MEDITATIVE", colorClass: "glow-text-purple"  },
-  focused:    { hue: 40,  label: "FOCUSED",    colorClass: "text-yellow-400"   },
-  stressed:   { hue: 0,   label: "STRESSED",   colorClass: "glow-text-magenta" },
-  drowsy:     { hue: 180, label: "DROWSY",     colorClass: "text-teal-400"     },
-  neutral:    { hue: 120, label: "NEUTRAL",    colorClass: "text-green-400"    },
-};
+import { getEmotionMeta } from "../lib/emotionMeta";
 
 interface Props {
   emotion:    string;
@@ -17,7 +9,7 @@ interface Props {
 }
 
 export default function EmotionOrb({ emotion, confidence, colorHue }: Props) {
-  const meta = EMOTION_META[emotion] ?? EMOTION_META["neutral"];
+  const meta = getEmotionMeta(emotion);
   const h    = colorHue;
 
   return (

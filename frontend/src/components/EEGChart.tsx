@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip,
   Legend, ResponsiveContainer, CartesianGrid,
@@ -6,7 +6,7 @@ import {
 import { BandHistory } from "../hooks/useWebSocket";
 
 interface Props {
-  historyRef: React.MutableRefObject<BandHistory[]>;
+  history: BandHistory[];
 }
 
 const LINES = [
@@ -17,19 +17,8 @@ const LINES = [
   { key: "delta", name: "δ Delta", color: "hsl(220 70% 55%)" },
 ];
 
-export default function EEGChart({ historyRef }: Props) {
-  const [data, setData] = useState<BandHistory[]>([]);
-
-  // Pull a fresh snapshot from the ref at 10 Hz
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (historyRef.current.length > 0) {
-        setData([...historyRef.current]);
-      }
-    }, 100);
-    return () => clearInterval(id);
-  }, [historyRef]);
-
+export default function EEGChart({ history }: Props) {
+  const data = history;
   const isEmpty = data.length === 0;
 
   return (

@@ -7,7 +7,7 @@ from eeg.muse_connection import MuseConnection, MuseConnectionError
 from services.session_manager import SessionState, session_manager
 from eeg.calibration import CalibrationManager
 from patterns.pattern_mapper import PatternMapper
-from services.stream_service import osc_sender, start_streaming
+from services.stream_service import start_streaming
 from models.schemas import (
     SessionConfig,
     SessionStartResponse,
@@ -34,6 +34,8 @@ def _build_muse_connection(session_config: dict) -> MuseConnection:
         serial_number=session_config.get("serial_number") or settings.muse_serial_number,
         serial_port=session_config.get("serial_port"),
         stream_name=session_config.get("stream_name") or settings.bluemuse_stream_name,
+        ppg_stream_name=settings.bluemuse_ppg_stream_name,
+        ppg_lsl_stream_type=settings.bluemuse_ppg_lsl_stream_type,
         timeout=int(session_config.get("timeout") or settings.brainflow_connection_timeout),
         stream_buffer_size=settings.brainflow_stream_buffer_size,
         lsl_stream_type=settings.bluemuse_lsl_stream_type,
@@ -86,7 +88,6 @@ def start_session(config: SessionConfig):
     session_id = session_manager.start_session(session_config)
     session_manager.muse_connection = muse_connection
     session_manager.set_state(SessionState.CONNECTING)
-    # Do NOT send any OSC here — wait until the stream loop produces a real EEG frame.
     start_streaming()
     return {"session_id": session_id, "status": "started"}
 
@@ -112,6 +113,46 @@ def get_session_status():
         start_time=info["start_time"],
         emotion_history_length=info["emotion_history_length"]
     )
+
+
+class SessionSensitivityUpdate(BaseModel):
+    sensitivity: float = Field(..., ge=0.0, le=1.0)
+
+
+class SessionEmotionSmoothingUpdate(BaseModel):
+    smoothing: float = Field(..., ge=0.0, le=1.0)
+
+
+@router.patch("/session/sensitivity")
+def update_session_sensitivity(payload: SessionSensitivityUpdate):
+    """
+    Update signal sensitivity during an active EEG session.
+    """
+    if session_manager.current_session_id is None:
+        raise HTTPException(status_code=400, detail="No active session")
+
+    updated = session_manager.update_session_config({"signal_sensitivity": float(payload.sensitivity)})
+    return {
+        "status": "updated",
+        "session_id": session_manager.current_session_id,
+        "signal_sensitivity": updated.get("signal_sensitivity"),
+    }
+
+
+@router.patch("/session/emotion-smoothing")
+def update_session_emotion_smoothing(payload: SessionEmotionSmoothingUpdate):
+    """
+    Update emotion smoothing during an active EEG session.
+    """
+    if session_manager.current_session_id is None:
+        raise HTTPException(status_code=400, detail="No active session")
+
+    updated = session_manager.update_session_config({"emotion_smoothing": float(payload.smoothing)})
+    return {
+        "status": "updated",
+        "session_id": session_manager.current_session_id,
+        "emotion_smoothing": updated.get("emotion_smoothing"),
+    }
 
 
 # -----------------------------
@@ -163,10 +204,10 @@ def run_calibration():
 
 
 # -----------------------------
-# MANUAL OSC OVERRIDE ENDPOINT
+# MANUAL OVERRIDE ENDPOINT
 # -----------------------------
 
-class ManualOscPayload(BaseModel):
+class ManualOverridePayload(BaseModel):
     alpha:      float = Field(default=0.55, ge=0.0, le=1.0)
     beta:       float = Field(default=0.18, ge=0.0, le=1.0)
     theta:      float = Field(default=0.15, ge=0.0, le=1.0)
@@ -176,23 +217,28 @@ class ManualOscPayload(BaseModel):
     emotion:    str   = Field(default="calm")
 
 
-@router.post("/osc/manual", status_code=200)
-def send_manual_osc(payload: ManualOscPayload):
+@router.post("/manual/override", status_code=200)
+def send_manual_override(payload: ManualOverridePayload):
     """
-    Send manually overridden EEG band values and emotion directly to
-    TouchDesigner via OSC. Used by the frontend Manual Mode panel.
+    Inject manually overridden EEG band values and emotion into the live
+    WebSocket stream. Used by the frontend Manual Mode panel.
     """
-    osc_sender.send_fields({
-        "alpha":      payload.alpha,
-        "beta":       payload.beta,
-        "theta":      payload.theta,
-        "gamma":      payload.gamma,
-        "delta":      payload.delta,
-        "confidence": payload.confidence,
-        "emotion":    payload.emotion,
+    import time
+    from services.session_manager import session_manager as sm
+    message = {
+        "timestamp": float(time.time()),
+        "alpha":         payload.alpha,
+        "beta":          payload.beta,
+        "theta":         payload.theta,
+        "gamma":         payload.gamma,
+        "delta":         payload.delta,
+        "confidence":    payload.confidence,
+        "emotion":       payload.emotion,
         "signal_quality": payload.confidence * 100,
-        "active":     1,
-    })
+        "active":        1,
+        "manual":        True,
+    }
+    sm.set_latest_stream_message(message)
     return {"status": "ok", "emotion": payload.emotion}
 
 

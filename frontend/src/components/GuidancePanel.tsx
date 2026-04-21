@@ -45,12 +45,18 @@ export default function GuidancePanel({ guidance, emotion, connected, hasSignal 
   const status = getStatus(connected, hasSignal);
   const cfg    = STATUS_CONFIG[status];
   const Icon   = cfg.icon;
+  const normalizedGuidance = typeof guidance === "string" ? guidance.trim() : "";
+  const fallbackGuidance = emotion
+    ? `Live state: ${emotion}. Guidance will appear as the stream stabilizes.`
+    : "Guidance will appear once the stream begins producing live emotion data.";
 
   // Show guidance text only when live, otherwise show the status tip
-  const displayText = status === "live" ? guidance : cfg.tip!;
+  const displayText = status === "live"
+    ? (normalizedGuidance || fallbackGuidance)
+    : cfg.tip!;
 
   return (
-    <div className="glass-card-purple gradient-border p-5 flex gap-4 items-start">
+    <div className="glass-card-purple gradient-border p-5 flex gap-4 items-start min-h-[120px]">
       {/* Brain icon */}
       <div className="mt-0.5 shrink-0">
         <motion.div
@@ -63,8 +69,11 @@ export default function GuidancePanel({ guidance, emotion, connected, hasSignal 
 
       {/* Text */}
       <div className="flex-1 min-w-0">
-        <p className="text-[11px] font-semibold tracking-widest text-muted-foreground uppercase mb-1.5">
+        <p className="text-[11px] font-semibold tracking-widest text-foreground/70 uppercase mb-1.5">
           AI Guidance
+        </p>
+        <p className="mono text-[10px] text-primary/80 uppercase tracking-wider mb-2">
+          {status === "live" ? `State ${emotion || "unknown"}` : cfg.label}
         </p>
         <AnimatePresence mode="wait">
           <motion.p
@@ -74,7 +83,9 @@ export default function GuidancePanel({ guidance, emotion, connected, hasSignal 
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.35 }}
             className={`text-sm leading-relaxed ${
-              status === "live" ? "text-foreground/85" : "text-muted-foreground italic"
+              status === "live"
+                ? "text-foreground font-medium"
+                : "text-foreground/70 italic"
             }`}
           >
             {displayText}

@@ -1,9 +1,10 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Activity, ArrowLeft, Sliders, Radio } from "lucide-react";
+import { Activity, ArrowLeft, CircleHelp, Sliders, Radio } from "lucide-react";
 import { useWebSocket }          from "../hooks/useWebSocket";
 import { useManualMode }         from "../hooks/useManualMode";
 import { useDisconnectDetector } from "../hooks/useDisconnectDetector";
+import { resolveApiBaseUrl } from "../lib/runtimeConfig";
 import EmotionOrb     from "./EmotionOrb";
 import EEGChart       from "./EEGChart";
 import BandCards      from "./BandCards";
@@ -12,15 +13,55 @@ import GuidancePanel  from "./GuidancePanel";
 import ManualModePanel from "./ManualModePanel";
 import DisconnectModal, { ReconnectToast } from "./DisconnectModal";
 import type { SessionConfig } from "../types";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+
+const formatVitalValue = (value: number | null, digits = 1) =>
+  value === null ? "--" : value.toFixed(digits);
+
+const getVitalStatus = (source: string | null, heartBpm: number | null) => {
+  if (heartBpm !== null) {
+    return source === "bluemuse-ppg" ? "BlueMuse PPG" : source ?? "Live pulse stream";
+  }
+
+  if (source === null) {
+    return "No pulse stream";
+  }
+
+  return `${source} detected`;
+};
+
+function SliderInfo({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="text-muted-foreground transition-colors hover:text-primary"
+          aria-label="More information"
+        >
+          <CircleHelp className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs text-xs leading-relaxed">
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 interface Props {
   config:  SessionConfig;
+  setConfig: React.Dispatch<React.SetStateAction<SessionConfig>>;
   onBack:  () => void;
 }
 
-export default function MonitoringScreen({ config, onBack }: Props) {
+export default function MonitoringScreen({ config, setConfig, onBack }: Props) {
   // ── Live data ───────────────────────────────────────────────────────────────
-  const { data, connected, hasSignal, historyRef } = useWebSocket();
+  const { data, connected, hasSignal, history } = useWebSocket();
+  const [isUpdatingSensitivity, setIsUpdatingSensitivity] = React.useState(false);
+  const [isUpdatingSmoothing, setIsUpdatingSmoothing] = React.useState(false);
+  const updateTimeoutRef = React.useRef<number | null>(null);
+  const smoothingUpdateTimeoutRef = React.useRef<number | null>(null);
 
   // ── Manual mode ─────────────────────────────────────────────────────────────
   const manual = useManualMode();
@@ -43,8 +84,70 @@ export default function MonitoringScreen({ config, onBack }: Props) {
 
   // ── Decide which data to render ─────────────────────────────────────────────
   const display = manual.isManual ? manual.manualData : data;
+  const vitalStatus = getVitalStatus(
+    display.vitals.source,
+    display.vitals.heartBpm,
+  );
+
+  const handleSensitivityChange = React.useCallback((value: number) => {
+    setConfig((previous) => ({ ...previous, sensitivity: value }));
+
+    if (updateTimeoutRef.current !== null) {
+      window.clearTimeout(updateTimeoutRef.current);
+    }
+
+    updateTimeoutRef.current = window.setTimeout(async () => {
+      setIsUpdatingSensitivity(true);
+      try {
+        await fetch(`${resolveApiBaseUrl()}/api/session/sensitivity`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sensitivity: value / 100 }),
+        });
+      } catch {
+        // Keep the slider responsive even if the backend update fails.
+      } finally {
+        setIsUpdatingSensitivity(false);
+      }
+    }, 120);
+  }, [setConfig]);
+
+  const handleSmoothingChange = React.useCallback((value: number) => {
+    setConfig((previous) => ({ ...previous, smoothing: value }));
+
+    if (smoothingUpdateTimeoutRef.current !== null) {
+      window.clearTimeout(smoothingUpdateTimeoutRef.current);
+    }
+
+    smoothingUpdateTimeoutRef.current = window.setTimeout(async () => {
+      setIsUpdatingSmoothing(true);
+      try {
+        await fetch(`${resolveApiBaseUrl()}/api/session/emotion-smoothing`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ smoothing: value / 100 }),
+        });
+      } catch {
+        // Keep the slider responsive even if the backend update fails.
+      } finally {
+        setIsUpdatingSmoothing(false);
+      }
+    }, 120);
+  }, [setConfig]);
+
+  React.useEffect(() => {
+    return () => {
+      if (updateTimeoutRef.current !== null) {
+        window.clearTimeout(updateTimeoutRef.current);
+      }
+      if (smoothingUpdateTimeoutRef.current !== null) {
+        window.clearTimeout(smoothingUpdateTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
+    <TooltipProvider delayDuration={150}>
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -79,6 +182,7 @@ export default function MonitoringScreen({ config, onBack }: Props) {
           {[
             { label: "Pattern",     value: config.patternType },
             { label: "Sensitivity", value: `${config.sensitivity}%` },
+            { label: "Smoothing",   value: `${config.smoothing}%` },
           ].map(({ label, value }) => (
             <div key={label} className="px-3 py-1.5 rounded-full border border-border/30
               bg-muted/30 flex gap-1.5 items-center">
@@ -216,17 +320,82 @@ export default function MonitoringScreen({ config, onBack }: Props) {
           <div className={`transition-all duration-500 ${
             isDisconnected ? "opacity-30 grayscale" : ""
           }`}>
-            <EEGChart historyRef={historyRef} />
+            <EEGChart history={history} />
           </div>
           <BandCards bands={display.bands} />
+
+          <div className="glass-card px-5 py-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="mono text-[10px] text-muted-foreground uppercase tracking-widest">Live Sensitivity</p>
+                  <SliderInfo text="Controls how strongly the system reacts to EEG changes. Lower values smooth out noisy fluctuations, while higher values make the visuals respond faster to small signal changes." />
+                </div>
+                <p className="text-sm font-medium mt-1">Adjust stream response while monitoring</p>
+              </div>
+              <div className="text-right">
+                <p className="mono text-sm text-primary">{config.sensitivity}%</p>
+                <p className="mono text-[10px] text-muted-foreground">{isUpdatingSensitivity ? "Updating..." : "Live"}</p>
+              </div>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={config.sensitivity}
+              onChange={(e) => handleSensitivityChange(Number(e.target.value))}
+              className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer accent-primary
+                [&::-webkit-slider-thumb]:appearance-none
+                [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+                [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full
+                [&::-webkit-slider-thumb]:shadow-[0_0_10px_hsl(187_80%_55%/0.5)]"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground mono">
+              <span>Smoother</span>
+              <span>More reactive</span>
+            </div>
+          </div>
+
+          <div className="glass-card px-5 py-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="mono text-[10px] text-muted-foreground uppercase tracking-widest">State Smoothing</p>
+                  <SliderInfo text="Controls how stable the detected mental state feels over time. Lower values switch states quickly, while higher values hold onto the recent state longer before changing." />
+                </div>
+                <p className="text-sm font-medium mt-1">Adjust how sticky the emotion state feels</p>
+              </div>
+              <div className="text-right">
+                <p className="mono text-sm text-primary">{config.smoothing}%</p>
+                <p className="mono text-[10px] text-muted-foreground">{isUpdatingSmoothing ? "Updating..." : "Live"}</p>
+              </div>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={config.smoothing}
+              onChange={(e) => handleSmoothingChange(Number(e.target.value))}
+              className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer accent-primary
+                [&::-webkit-slider-thumb]:appearance-none
+                [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+                [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full
+                [&::-webkit-slider-thumb]:shadow-[0_0_10px_hsl(187_80%_55%/0.5)]"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground mono">
+              <span>Reactive</span>
+              <span>Stable</span>
+            </div>
+          </div>
 
           <div className="glass-card px-5 py-3 flex items-center justify-between">
             <div className="flex items-center gap-6">
               {[
                 { label: "Device",      value: "Muse Headband"          },
-                { label: "Protocol",    value: "LSL → OSC + WS"         },
+                { label: "Protocol",    value: "LSL → WS → Arduino"     },
                 { label: "AI Model",    value: "Rule-Based v1"          },
                 { label: "Sensitivity", value: `${config.sensitivity}%` },
+                { label: "Smoothing",   value: `${config.smoothing}%`   },
               ].map(({ label, value }) => (
                 <div key={label}>
                   <p className="mono text-[10px] text-muted-foreground uppercase tracking-widest">{label}</p>
@@ -248,9 +417,33 @@ export default function MonitoringScreen({ config, onBack }: Props) {
               </div>
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="glass-card px-5 py-4 flex items-center justify-between">
+              <div>
+                <p className="mono text-[10px] text-muted-foreground uppercase tracking-widest">Heart Rate</p>
+                <p className="text-sm font-medium mt-1">HeartPy BPM</p>
+              </div>
+              <div className="text-right">
+                <p className="mono text-lg text-primary">{formatVitalValue(display.vitals.heartBpm)}</p>
+                <p className="mono text-[10px] text-muted-foreground">{display.vitals.heartBpm === null ? vitalStatus : "bpm"}</p>
+              </div>
+            </div>
+
+            <div className="glass-card px-5 py-4 flex items-center justify-between">
+              <div>
+                <p className="mono text-[10px] text-muted-foreground uppercase tracking-widest">Respiration</p>
+                <p className="text-sm font-medium mt-1">HeartPy breathing rate</p>
+              </div>
+              <div className="text-right">
+                <p className="mono text-lg text-primary">{formatVitalValue(display.vitals.respirationRpm)}</p>
+                <p className="mono text-[10px] text-muted-foreground">{display.vitals.respirationRpm === null ? vitalStatus : "rpm"}</p>
+              </div>
+            </div>
+          </div>
         </motion.section>
 
-        {/* Right — Design params + TD status */}
+        {/* Right — Design params + Arduino status */}
         <motion.aside
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -261,15 +454,15 @@ export default function MonitoringScreen({ config, onBack }: Props) {
 
           <div className="glass-card p-5 flex flex-col gap-3">
             <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-              TouchDesigner
+              Arduino
             </p>
             <div className="flex flex-col gap-2">
               {[
-                { label: "OSC Port",  value: "7000",                                             ok: true },
-                { label: "Host",      value: "127.0.0.1",                                        ok: true },
-                { label: "Rendering", value: (connected || manual.isManual) ? "Active" : "Standby", ok: connected || manual.isManual },
-                { label: "Mode",      value: manual.isManual ? "Manual Override" : "Auto / Live", ok: true },
-                { label: "Pattern",   value: config.patternType,                                  ok: true },
+                { label: "Device",    value: "ESP32 + WS2812B",                                    ok: true },
+                { label: "Transport", value: "WebSocket",                                           ok: true },
+                { label: "LEDs",      value: (connected || manual.isManual) ? "Active" : "Standby", ok: connected || manual.isManual },
+                { label: "Mode",      value: manual.isManual ? "Manual Override" : "Auto / Live",   ok: true },
+                { label: "Pattern",   value: config.patternType,                                    ok: true },
               ].map(({ label, value, ok }) => (
                 <div key={label} className="flex justify-between items-center">
                   <span className="mono text-[11px] text-muted-foreground">{label}</span>
@@ -289,7 +482,6 @@ export default function MonitoringScreen({ config, onBack }: Props) {
         onClose={manual.deactivate}
         emotion={manual.emotion}
         bands={manual.bands}
-        oscMessages={manual.oscMessages}
         onSetEmotion={manual.setEmotion}
         onSetBand={manual.setBand}
         onCommitBand={manual.commitBand}
@@ -305,5 +497,6 @@ export default function MonitoringScreen({ config, onBack }: Props) {
       {/* ── Reconnect toast ──────────────────────────────────────────────────── */}
       <ReconnectToast show={showReconnectToast} />
     </motion.div>
+    </TooltipProvider>
   );
 }

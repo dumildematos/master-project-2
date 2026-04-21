@@ -10,6 +10,9 @@ from services.session_manager import session_manager
 router = APIRouter()
 logger = logging.getLogger("sentio.websocket")
 
+WAIT_POLL_INTERVAL = 0.02
+ACTIVE_POLL_INTERVAL = 0.01
+
 
 def _is_allowed_origin(origin: str | None) -> bool:
     if origin is None:
@@ -96,6 +99,17 @@ async def _send_new_message(websocket: WebSocket, message: dict, last_timestamp,
     return timestamp, messages_sent
 
 
+async def _wait_for_next_frame(last_timestamp: object | None) -> dict | None:
+    message = session_manager.get_latest_stream_message()
+    if message is None:
+        return None
+
+    if message.get("timestamp") == last_timestamp:
+        return None
+
+    return message
+
+
 @router.websocket(settings.ws_endpoint)
 async def brain_stream(websocket: WebSocket):
     """
@@ -121,7 +135,7 @@ async def brain_stream(websocket: WebSocket):
 
     try:
         while True:
-            message = session_manager.get_latest_stream_message()
+            message = await _wait_for_next_frame(last_timestamp)
 
             if message is None:
                 # No real EEG data yet — keep the socket alive with a typed
@@ -135,7 +149,7 @@ async def brain_stream(websocket: WebSocket):
                         last_heartbeat = now
                     except Exception:
                         break
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(WAIT_POLL_INTERVAL if session_manager.get_latest_stream_message() is None else ACTIVE_POLL_INTERVAL)
                 continue
 
             # Real EEG frame available — send it and reset the heartbeat timer.
@@ -148,7 +162,7 @@ async def brain_stream(websocket: WebSocket):
                 client_port,
             )
             last_heartbeat = time.monotonic()
-            await asyncio.sleep(settings.eeg_update_interval)
+            await asyncio.sleep(ACTIVE_POLL_INTERVAL)
     except WebSocketDisconnect:
         logger.info(
             "WebSocket disconnected for %s:%s after %s frames",

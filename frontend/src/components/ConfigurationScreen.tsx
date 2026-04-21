@@ -1,8 +1,9 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Brain, ChevronRight, Settings } from "lucide-react";
+import { Brain, ChevronRight, CircleHelp, Settings } from "lucide-react";
 import type { SessionConfig } from "../types";
 import DeviceNotConnectedModal from "./DeviceNotConnectedModal";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 
 const patternTypes = [
   { id: "organic",   label: "Organic",   desc: "Flowing natural forms"  },
@@ -10,6 +11,25 @@ const patternTypes = [
   { id: "fluid",     label: "Fluid",     desc: "Liquid motion patterns" },
   { id: "textile",   label: "Textile",   desc: "Woven fabric inspired"  },
 ];
+
+function SliderInfo({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="text-muted-foreground transition-colors hover:text-primary"
+          aria-label="More information"
+        >
+          <CircleHelp className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs text-xs leading-relaxed">
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 interface Props {
   config:    SessionConfig;
@@ -55,6 +75,7 @@ export default function ConfigurationScreen({ config, setConfig, onStart }: Prop
         body: JSON.stringify({
           pattern_type:       config.patternType,
           signal_sensitivity: config.sensitivity / 100,
+          emotion_smoothing:  config.smoothing / 100,
           noise_control:      1.0,
           mac_address:        macAddress || undefined,
         }),
@@ -154,6 +175,7 @@ export default function ConfigurationScreen({ config, setConfig, onStart }: Prop
       </motion.p>
 
       {/* Config card */}
+      <TooltipProvider delayDuration={150}>
       <motion.div
         initial={{ y: 30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -192,7 +214,10 @@ export default function ConfigurationScreen({ config, setConfig, onStart }: Prop
         {/* Signal Sensitivity */}
         <div className="space-y-3">
           <div className="flex justify-between items-center">
-            <label className="text-sm text-muted-foreground mono">Signal Sensitivity</label>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-muted-foreground mono">Signal Sensitivity</label>
+              <SliderInfo text="Controls how strongly the system reacts to EEG changes. Lower values smooth out noisy fluctuations, while higher values make the visuals respond faster to small signal changes." />
+            </div>
             <span className="mono text-xs text-primary">{config.sensitivity}%</span>
           </div>
           <input
@@ -211,6 +236,30 @@ export default function ConfigurationScreen({ config, setConfig, onStart }: Prop
           </div>
         </div>
 
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-muted-foreground mono">State Smoothing</label>
+              <SliderInfo text="Controls how stable the detected mental state feels over time. Lower values switch states quickly, while higher values hold onto the recent state longer before changing." />
+            </div>
+            <span className="mono text-xs text-primary">{config.smoothing}%</span>
+          </div>
+          <input
+            type="range" min={0} max={100}
+            value={config.smoothing}
+            onChange={(e) => setConfig({ ...config, smoothing: Number(e.target.value) })}
+            className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer accent-primary
+              [&::-webkit-slider-thumb]:appearance-none
+              [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+              [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full
+              [&::-webkit-slider-thumb]:shadow-[0_0_10px_hsl(187_80%_55%/0.5)]"
+          />
+          <div className="flex justify-between text-xs text-muted-foreground mono">
+            <span>Reactive</span>
+            <span>Stable</span>
+          </div>
+        </div>
+
         {/* Start button */}
         <button
           disabled={!isValid || loading}
@@ -224,6 +273,7 @@ export default function ConfigurationScreen({ config, setConfig, onStart }: Prop
           <ChevronRight className="w-4 h-4" />
         </button>
       </motion.div>
+      </TooltipProvider>
 
       {/* Device settings FAB */}
       <button

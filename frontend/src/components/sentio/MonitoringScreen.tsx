@@ -2,13 +2,7 @@ import { motion } from "framer-motion";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Activity, Zap, Waves, Signal, Eye } from "lucide-react";
 import { useBrainContext } from "../../context/BrainContext";
-
-const emotions = [
-  { label: "Calm", color: "hsl(187 80% 55%)", bg: "bg-primary/10" },
-  { label: "Focused", color: "hsl(220 70% 55%)", bg: "bg-blue-500/10" },
-  { label: "Excited", color: "hsl(310 60% 55%)", bg: "bg-accent/10" },
-  { label: "Relaxed", color: "hsl(270 60% 55%)", bg: "bg-secondary/10" },
-];
+import { formatEmotionLabel, getEmotionMeta } from "../../lib/emotionMeta";
 
 interface Props {
   onPatternReady: () => void;
@@ -51,10 +45,7 @@ const MonitoringScreen = ({ onPatternReady }: Props) => {
     setElapsed((current) => current + 1);
   }, [brainData]);
 
-  const emotion = useMemo(
-    () => emotions.find((entry) => entry.label === brainData?.emotion) ?? emotions[0],
-    [brainData?.emotion],
-  );
+  const emotion = useMemo(() => getEmotionMeta(brainData?.emotion), [brainData?.emotion]);
 
   const eegData = brainData?.eegData?.length ? trimSeries(brainData.eegData) : [];
   const alphaData = brainData?.alphaWave?.length ? trimSeries(brainData.alphaWave) : [];
@@ -66,6 +57,8 @@ const MonitoringScreen = ({ onPatternReady }: Props) => {
   const confidence = brainData?.confidence ?? 0;
   const gamma = brainData?.gamma ?? 0;
   const theta = brainData?.theta ?? 0;
+  const heartBpm = brainData?.heartBpm ?? null;
+  const respirationRpm = brainData?.respirationRpm ?? null;
   const signal = brainData?.signal_quality ?? 0;
   const isConnected = Boolean(brainData);
   const eegPoints = toPolylinePoints(eegData);
@@ -230,7 +223,7 @@ const MonitoringScreen = ({ onPatternReady }: Props) => {
               <h3 className="text-xs font-mono text-muted-foreground">Detected Emotion</h3>
             </div>
             <p className="text-2xl font-bold" style={{ color: emotion.color }}>
-              {brainData?.emotion || emotion.label}
+              {formatEmotionLabel(brainData?.emotion)}
             </p>
             <div className="mt-3 h-1.5 rounded-full overflow-hidden bg-muted/30">
               <motion.div
@@ -247,6 +240,8 @@ const MonitoringScreen = ({ onPatternReady }: Props) => {
           <DataCard icon={<Activity className="w-4 h-4" />} label="Beta" value={beta.toFixed(2)} unit="μV" color="hsl(270 60% 55%)" />
           <DataCard icon={<Waves className="w-4 h-4" />} label="Gamma" value={gamma.toFixed(2)} unit="μV" color="hsl(310 60% 55%)" />
           <DataCard icon={<Activity className="w-4 h-4" />} label="Theta" value={theta.toFixed(2)} unit="μV" color="hsl(220 70% 55%)" />
+          <DataCard icon={<Activity className="w-4 h-4" />} label="Heart" value={heartBpm === null ? "--" : heartBpm.toFixed(1)} unit="bpm" color="hsl(12 85% 60%)" />
+          <DataCard icon={<Waves className="w-4 h-4" />} label="Respiration" value={respirationRpm === null ? "--" : respirationRpm.toFixed(1)} unit="rpm" color="hsl(160 65% 55%)" />
           <DataCard icon={<Signal className="w-4 h-4" />} label="Signal" value={signal.toFixed(0)} unit="%" color="hsl(140 60% 50%)" />
         </div>
       </div>

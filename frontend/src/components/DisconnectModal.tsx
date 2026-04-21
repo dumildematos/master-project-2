@@ -171,7 +171,7 @@ export default function DisconnectModal({ isOpen, onDismiss }: Props) {
               {/* Description */}
               <p className="text-sm text-muted-foreground text-center leading-relaxed max-w-xs">
                 The EEG headset stopped sending data.
-                The visual output is paused — no data is being sent to TouchDesigner.
+                The visual output is paused — no data is being sent to the Arduino.
               </p>
 
               {/* Checklist */}

@@ -27,6 +27,7 @@ class SessionManager:
         self.emotion_history = []
         self.muse_connection: Optional[Any] = None
         self.latest_stream_message: Optional[Dict[str, Any]] = None
+        self.latest_stream_timestamp: Optional[float] = None
         self.stream_thread: Optional[threading.Thread] = None
         self.stream_stop_event = threading.Event()
         self._stream_lock = threading.Lock()
@@ -50,6 +51,14 @@ class SessionManager:
         """
         self.session_state = state
 
+    def update_session_config(self, updates: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Merge runtime session configuration updates.
+        """
+        with self._stream_lock:
+            self.session_config.update(copy.deepcopy(updates))
+            return copy.deepcopy(self.session_config)
+
     def stop_session(self):
         """
         Stop the active session.
@@ -66,12 +75,14 @@ class SessionManager:
         self.muse_connection = None
         self.clear_latest_stream_message()
 
-    def add_emotion(self, emotion: str):
+    def add_emotion(self, emotion: str, confidence: Optional[float] = None, detected_emotion: Optional[str] = None):
         """
         Store emotion history during session.
         """
         self.emotion_history.append({
             "emotion": emotion,
+            "confidence": confidence,
+            "detected_emotion": detected_emotion or emotion,
             "timestamp": time.time()
         })
 
@@ -89,17 +100,22 @@ class SessionManager:
 
     def set_latest_stream_message(self, message: Dict[str, Any]):
         with self._stream_lock:
-            self.latest_stream_message = copy.deepcopy(message)
+            self.latest_stream_message = message
+            timestamp = message.get("timestamp")
+            self.latest_stream_timestamp = float(timestamp) if isinstance(timestamp, (int, float)) else None
 
     def get_latest_stream_message(self) -> Optional[Dict[str, Any]]:
         with self._stream_lock:
-            if self.latest_stream_message is None:
-                return None
-            return copy.deepcopy(self.latest_stream_message)
+            return self.latest_stream_message
+
+    def get_latest_stream_timestamp(self) -> Optional[float]:
+        with self._stream_lock:
+            return self.latest_stream_timestamp
 
     def clear_latest_stream_message(self):
         with self._stream_lock:
             self.latest_stream_message = None
+            self.latest_stream_timestamp = None
 
     def start_stream_thread(self, target) -> bool:
         with self._stream_lock:
