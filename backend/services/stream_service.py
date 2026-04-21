@@ -10,6 +10,7 @@ from heart_rate import HeartRateProcessor
 from models.schemas import EmotionResult, EmotionType, PatternType
 from patterns.pattern_mapper import PatternMapper
 from services.session_manager import SessionState, session_manager
+from services.guidance_service import get_guidance
 
 logger = logging.getLogger("sentio.stream")
 
@@ -221,6 +222,23 @@ def _build_stream_message(
         "gender": stream_config.get("gender"),
         "pattern_type": selected_pattern.value,
         "active": 1,
+        "ai_guidance": get_guidance(
+            emotion=emotion_result.emotion.value,
+            confidence=float(emotion_result.confidence),
+            alpha=float(features["alpha"]),
+            beta=float(features["beta"]),
+            theta=float(features["theta"]),
+            gamma=float(features["gamma"]),
+            delta=float(features["delta"]),
+            mindfulness=(
+                float(emotion_result.mindfulness)
+                if emotion_result.mindfulness is not None else None
+            ),
+            restfulness=(
+                float(emotion_result.restfulness)
+                if emotion_result.restfulness is not None else None
+            ),
+        ),
     }
 
 

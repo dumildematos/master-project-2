@@ -75,6 +75,7 @@ interface BackendMessage {
   /** Raw single-frame detection before backend smoothing window */
   detected_emotion?: string;
   detected_confidence?: number;
+  ai_guidance?: string | null;
   heart_bpm?: number | null;
   heart_confidence?: number | null;
   respiration_rpm?: number | null;
@@ -224,7 +225,10 @@ function mapMessage(msg: BackendMessage): SentioState {
           : null,
     },
     params:   computeParams(msg),
-    guidance: emotionMeta.guidance,
+    // Prefer live Claude-generated guidance; fall back to static emotion copy
+    guidance: (typeof msg.ai_guidance === "string" && msg.ai_guidance)
+      ? msg.ai_guidance
+      : emotionMeta.guidance,
   };
 }
 
