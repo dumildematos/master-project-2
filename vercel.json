@@ -1,18 +1,13 @@
 {
-  "buildCommand": "npm --prefix frontend ci && npm --prefix frontend run build",
-  "outputDirectory": "frontend/dist",
-  "framework": null,
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options",        "value": "DENY"    },
-        { "key": "X-XSS-Protection",       "value": "1; mode=block" }
-      ]
+  "experimentalServices": {
+    "frontend": {
+      "entrypoint": "frontend",
+      "routePrefix": "/",
+      "framework": "vite"
+    },
+    "backend": {
+      "entrypoint": "backend",
+      "routePrefix": "/_/backend"
     }
-  ]
+  }
 }
