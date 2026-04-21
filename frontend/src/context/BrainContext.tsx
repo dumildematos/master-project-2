@@ -31,6 +31,13 @@ export interface BrainData {
   patternSeed: number | null;
   signal_quality: number;
   emotion: string;
+  /** Raw single-frame detection before backend smoothing window */
+  detectedEmotion: string;
+  detectedConfidence: number;
+  /** True when confidence < 42% */
+  isUncertain: boolean;
+  mindfulness: number | null;
+  restfulness: number | null;
   timestamp: number;
   eegData: number[];
   alphaWave: number[];
@@ -105,10 +112,15 @@ const parseBrainStreamPayload = (payload: Record<string, unknown>, previous: Bra
   const eegData = takeRecentValues(payload.eeg);
   const eegPoint = buildEegPoint({ alpha, beta, gamma, delta, theta });
 
+  const rawConfidence = parseNumber(payload.confidence);
+  // Treat 0–1 as fractional, >1 as already percentage
+  const confidencePct = rawConfidence <= 1 ? rawConfidence * 100 : rawConfidence;
+  const UNCERTAIN_THRESHOLD = 42; // mirrors useWebSocket.ts (42%)
+
   return {
     alpha,
     beta,
-    confidence: toPercent(payload.confidence),
+    confidence: confidencePct,
     gamma,
     delta,
     theta,
@@ -119,6 +131,13 @@ const parseBrainStreamPayload = (payload: Record<string, unknown>, previous: Bra
     patternSeed: typeof payload.pattern_seed === "number" ? payload.pattern_seed : previous?.patternSeed ?? null,
     signal_quality: toPercent(payload.signal_quality, parseNumber(payload.signal)),
     emotion: toEmotionLabel(payload.emotion),
+    detectedEmotion: toEmotionLabel(payload.detected_emotion ?? payload.emotion),
+    detectedConfidence: typeof payload.detected_confidence === "number"
+      ? (payload.detected_confidence <= 1 ? payload.detected_confidence * 100 : payload.detected_confidence)
+      : confidencePct,
+    isUncertain: confidencePct < UNCERTAIN_THRESHOLD,
+    mindfulness: typeof payload.mindfulness === "number" ? payload.mindfulness : null,
+    restfulness: typeof payload.restfulness === "number" ? payload.restfulness : null,
     timestamp: parseNumber(payload.timestamp, Date.now()),
     eegData: eegData.length ? eegData : appendPoint(previous?.eegData ?? [], eegPoint),
     alphaWave: alphaWave.length ? alphaWave : appendPoint(previous?.alphaWave ?? [], alpha),
