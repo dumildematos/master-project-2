@@ -848,6 +848,120 @@
     }
 
     /* ──────────────────────────────
+       SEMESTER UNITS
+    ────────────────────────────── */
+    .units-grid {
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .unit-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      display: grid;
+      grid-template-columns: 1fr 1px 1fr;
+      overflow: hidden;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    .unit-card:hover {
+      border-color: hsl(230 20% 28%);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    .unit-left {
+      padding: 28px 32px;
+      display: flex; flex-direction: column; gap: 14px;
+      border-left: 3px solid var(--unit-color, var(--cyan));
+    }
+    .unit-divider {
+      background: var(--border);
+      width: 1px;
+    }
+    .unit-right {
+      padding: 28px 32px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .unit-header {
+      display: flex; align-items: center; gap: 14px;
+    }
+    .unit-icon {
+      width: 46px; height: 46px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .unit-name {
+      font-size: 16px; font-weight: 700; line-height: 1.3;
+      margin-bottom: 2px;
+    }
+    .unit-code {
+      font-family: var(--mono); font-size: 9px; letter-spacing: 2px;
+      color: var(--unit-color, var(--cyan)); text-transform: uppercase;
+    }
+    .unit-desc {
+      font-size: 13px; color: var(--muted); line-height: 1.7;
+    }
+    .unit-applied-label {
+      font-family: var(--mono); font-size: 9px; letter-spacing: 2px;
+      color: var(--muted); text-transform: uppercase; margin-bottom: 4px;
+    }
+    .unit-applied-points {
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .unit-point {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: 13px; color: var(--muted); line-height: 1.6;
+    }
+    .unit-point::before {
+      content: '→';
+      color: var(--unit-color, var(--cyan));
+      font-family: var(--mono); font-size: 11px;
+      flex-shrink: 0; margin-top: 2px;
+    }
+    .unit-point strong { color: var(--text); }
+    @media (max-width: 768px) {
+      .unit-card { grid-template-columns: 1fr; }
+      .unit-divider { width: auto; height: 1px; }
+      .unit-left { border-left: none; border-top: 3px solid var(--unit-color, var(--cyan)); }
+    }
+
+    /* ──────────────────────────────
+       FAQ
+    ────────────────────────────── */
+    .faq-list {
+      display: flex; flex-direction: column; gap: 12px;
+      max-width: 820px; margin: 0 auto;
+    }
+    .faq-item {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .faq-item:hover { border-color: hsl(230 20% 28%); }
+    .faq-question {
+      width: 100%; background: none; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 24px; gap: 16px;
+      color: var(--text); font-family: var(--font);
+      font-size: 15px; font-weight: 600; text-align: left;
+    }
+    .faq-question:hover { color: var(--cyan); }
+    .faq-chevron {
+      flex-shrink: 0; width: 18px; height: 18px;
+      color: var(--muted); transition: transform 0.25s;
+    }
+    .faq-item.open .faq-chevron { transform: rotate(180deg); color: var(--cyan); }
+    .faq-answer {
+      max-height: 0; overflow: hidden;
+      transition: max-height 0.35s ease, padding 0.25s;
+      font-size: 14px; color: var(--muted); line-height: 1.7;
+      padding: 0 24px;
+    }
+    .faq-item.open .faq-answer {
+      max-height: 300px;
+      padding: 0 24px 20px;
+    }
+
+    /* ──────────────────────────────
        SCROLL FADE IN
     ────────────────────────────── */
     .fade-in {
@@ -891,6 +1005,8 @@
     <li><a href="#emotions">EMOTIONS</a></li>
     <li><a href="#projection">LED GRID</a></li>
     <li><a href="#stack">STACK</a></li>
+    <li><a href="#units">UNITS</a></li>
+    <li><a href="#faq">FAQ</a></li>
     <li><a href="#team">TEAM</a></li>
   </ul>
   <a href="https://github.com/dumildematos/master-project-2" class="nav-cta" target="_blank" rel="noopener">
@@ -1323,6 +1439,194 @@
 
 <div class="full-divider"></div>
 
+<!-- ── Semester Units ── -->
+<section id="units">
+  <div class="section-tag">Academic Context</div>
+  <h2 class="section-title fade-in">Semester 2 units<br><span style="color:var(--amber)">applied to Sentio</span></h2>
+  <p class="section-sub fade-in">Every unit from the second semester of the Master in Creative Computing &amp; AI at IADE shaped a distinct layer of this project — from the neural network that reads brainwaves to the garment that wears the result.</p>
+
+  <div class="units-grid">
+
+    <!-- Applied Deep Learning -->
+    <div class="unit-card fade-in" style="--unit-color: hsl(187 80% 55%)">
+      <div class="unit-left">
+        <div class="unit-header">
+          <div class="unit-icon" style="background:hsl(187 80% 55%/0.1);border:1px solid hsl(187 80% 55%/0.25)">🧠</div>
+          <div>
+            <div class="unit-name">Applied Deep Learning</div>
+            <div class="unit-code">Semester 2 · Unit 1</div>
+          </div>
+        </div>
+        <div class="unit-desc">Covers neural network architectures, training pipelines, and real-time inference — moving deep learning from theory into production systems that operate under tight latency constraints.</div>
+      </div>
+      <div class="unit-divider"></div>
+      <div class="unit-right">
+        <div class="unit-applied-label">Applied in Sentio</div>
+        <div class="unit-applied-points">
+          <div class="unit-point">BrainFlow's built-in ML models compute <strong>mindfulness</strong> and <strong>restfulness</strong> scores per EEG window using a trained neural classifier.</div>
+          <div class="unit-point">The emotion detection pipeline runs <strong>inference on every 256 Hz frame</strong>, classifying brain states in under 50 ms end-to-end.</div>
+          <div class="unit-point">Signal quality scoring uses learned band-power distributions to distinguish clean EEG from electrode noise.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Interface and Interaction Design -->
+    <div class="unit-card fade-in" style="--unit-color: hsl(262 70% 65%)">
+      <div class="unit-left">
+        <div class="unit-header">
+          <div class="unit-icon" style="background:hsl(262 70% 65%/0.1);border:1px solid hsl(262 70% 65%/0.25)">🎨</div>
+          <div>
+            <div class="unit-name">Interface &amp; Interaction Design</div>
+            <div class="unit-code">Semester 2 · Unit 2</div>
+          </div>
+        </div>
+        <div class="unit-desc">Explores how humans interact with digital systems — covering feedback loops, real-time data visualisation, accessibility, and the design of interfaces that respond meaningfully to user state.</div>
+      </div>
+      <div class="unit-divider"></div>
+      <div class="unit-right">
+        <div class="unit-applied-label">Applied in Sentio</div>
+        <div class="unit-applied-points">
+          <div class="unit-point">The <strong>React monitoring dashboard</strong> surfaces live EEG bands, emotion confidence, and signal quality through animated, colour-coded components.</div>
+          <div class="unit-point"><strong>Manual Override mode</strong> lets users inject emotion presets via sliders — giving full interactive control without a headset.</div>
+          <div class="unit-point">The <strong>disconnect modal</strong> and uncertainty states follow inclusive design principles — never leaving the user without clear system feedback.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Generative Artificial Intelligence -->
+    <div class="unit-card fade-in" style="--unit-color: hsl(310 70% 62%)">
+      <div class="unit-left">
+        <div class="unit-header">
+          <div class="unit-icon" style="background:hsl(310 70% 62%/0.1);border:1px solid hsl(310 70% 62%/0.25)">✨</div>
+          <div>
+            <div class="unit-name">Generative Artificial Intelligence</div>
+            <div class="unit-code">Semester 2 · Unit 3</div>
+          </div>
+        </div>
+        <div class="unit-desc">Studies systems that synthesise novel outputs — including generative models, procedural generation, and AI-driven creative tools that produce images, patterns, or text.</div>
+      </div>
+      <div class="unit-divider"></div>
+      <div class="unit-right">
+        <div class="unit-applied-label">Applied in Sentio</div>
+        <div class="unit-applied-points">
+          <div class="unit-point">The <strong>pattern mapper</strong> generates unique LED animations per frame — colour palette, complexity, and seed all driven by live EEG values, never repeating the same output.</div>
+          <div class="unit-point">Four generative modes — <strong>Fluid Waves, Geometric Rings, Rhythmic Pulse, Star Field</strong> — each procedurally shaped by band power in real time.</div>
+          <div class="unit-point">On every streamed frame the system produces an <strong>AI guidance sentence</strong> — a short natural-language message that reflects the detected emotion and tells the wearer what the garment is doing and why (e.g. <em>"You're calm. Maintain this state to deepen the slow flowing visuals."</em>). This closes the generative loop: the AI does not only drive the light output, it narrates its own decisions back to the human in real time.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Emerging Technologies -->
+    <div class="unit-card fade-in" style="--unit-color: hsl(38 92% 58%)">
+      <div class="unit-left">
+        <div class="unit-header">
+          <div class="unit-icon" style="background:hsl(38 92% 58%/0.1);border:1px solid hsl(38 92% 58%/0.25)">⚡</div>
+          <div>
+            <div class="unit-name">Emerging Technologies</div>
+            <div class="unit-code">Semester 2 · Unit 4</div>
+          </div>
+        </div>
+        <div class="unit-desc">Examines technologies at the frontier of computing — wearables, brain-computer interfaces, IoT, edge AI, and the cultural implications of embedding intelligence into physical objects.</div>
+      </div>
+      <div class="unit-divider"></div>
+      <div class="unit-right">
+        <div class="unit-applied-label">Applied in Sentio</div>
+        <div class="unit-applied-points">
+          <div class="unit-point">The <strong>Muse 2 EEG headband</strong> and <strong>BrainFlow SDK</strong> represent consumer-grade BCI hardware brought into a creative wearable context.</div>
+          <div class="unit-point">A <strong>WS2812B LED strip sewn into a garment</strong> demonstrates edge IoT — an ESP32 acting as a low-latency WebSocket client driving 300 physical pixels.</div>
+          <div class="unit-point">The full stack — BCI → FastAPI → WebSocket → Arduino → fabric — embodies the <strong>physical-digital convergence</strong> that defines emerging technology practice.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<div class="full-divider"></div>
+
+<!-- ── FAQ ── -->
+<section id="faq" style="max-width:900px">
+  <div class="section-tag">FAQ</div>
+  <h2 class="section-title fade-in">Frequently asked<br><span style="color:var(--cyan)">questions</span></h2>
+  <p class="section-sub fade-in">Everything you need to know about how Sentio works, what hardware is required, and how to run it yourself.</p>
+
+  <div class="faq-list fade-in">
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        Do I need a real EEG headset to run Sentio?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-answer">
+        No. The backend ships with a built-in <strong>EEG simulator</strong> that generates realistic band-power data, so you can develop and demo the full pipeline — dashboard, patterns, and LED output — without a Muse headband. Simply set <code>device_source: simulator</code> in your session config.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        Which EEG devices are supported?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-answer">
+        Sentio is built around the <strong>Muse 2</strong> (4-channel EEG, 256 Hz) streamed via <strong>BlueMuse + Lab Streaming Layer (LSL)</strong>. Because the backend uses BrainFlow, other BrainFlow-compatible boards can be connected by changing the <code>board_id</code> in the session config — though emotion presets are tuned for Muse band ranges.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        How does the emotion detection work?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-answer">
+        Each EEG window is processed into five band powers (α, β, θ, γ, δ). A <strong>rule-based classifier</strong> maps band ratios to one of five emotions — calm, focused, stressed, relaxed, or excited. When BrainFlow's deep learning models are available, <strong>mindfulness and restfulness scores</strong> refine the classification. A <strong>weighted smoothing window</strong> stabilises the output across the last 7 frames to prevent jitter.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        What is the end-to-end latency?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-answer">
+        Under typical conditions the pipeline runs in <strong>under 50 ms</strong> — from EEG sample acquisition through signal processing, emotion classification, WebSocket broadcast, and LED render on the ESP32. The main variable is WiFi RTT between the backend laptop and the ESP32.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        How many LEDs does the garment use and how are they powered?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-answer">
+        The garment uses a <strong>BTF-LIGHTING WS2812B strip — 5 m at 60 LEDs/m = 300 individually addressable RGB LEDs</strong>, sewn in 12 serpentine rows. Power comes from a <strong>USB power bank (≥ 10 000 mAh, 5 V / 3 A)</strong> worn in a small waist pouch alongside the ESP32. Runtime is approximately 2–3 hours at brightness level 60.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        Can I use the Manual Override mode without EEG hardware?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-answer">
+        Yes — Manual Override is designed exactly for this. From the frontend dashboard you can <strong>select any emotion preset or drag individual band sliders</strong>. The values are injected directly into the WebSocket stream, so the Arduino updates its LED pattern instantly. This is the recommended mode for gallery demos and exhibitions where headset comfort is impractical.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        Is the source code open source?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-answer">
+        Yes. The full repository — backend (FastAPI + Python), frontend (React + TypeScript), and Arduino firmware (ESP32 + FastLED) — is publicly available on GitHub under an open licence. See <a href="https://github.com/dumildematos/master-project-2" style="color:var(--cyan)">dumildematos/master-project-2</a>.
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<div class="full-divider"></div>
+
 <!-- ── CTA ── -->
 <div class="cta-block">
   <h2 class="fade-in">Open source &amp;<br>fully documented</h2>
@@ -1547,6 +1851,16 @@
     paint();
     requestAnimationFrame(tick);
   })();
+
+  // ── FAQ accordion ──
+  function toggleFaq(btn) {
+    const item = btn.closest('.faq-item');
+    const isOpen = item.classList.contains('open');
+    // Close all
+    document.querySelectorAll('.faq-item.open').forEach(el => el.classList.remove('open'));
+    // Open clicked (unless it was already open)
+    if (!isOpen) item.classList.add('open');
+  }
 
   // ── Scroll fade-in ──
   const observer = new IntersectionObserver(entries => {
