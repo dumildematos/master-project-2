@@ -1,8 +1,9 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Activity, Zap, Waves, Signal, Eye } from "lucide-react";
+import { Activity, Zap, Waves, Signal, Eye, AlertTriangle } from "lucide-react";
 import { useBrainContext } from "../../context/BrainContext";
 import { formatEmotionLabel, getEmotionMeta } from "../../lib/emotionMeta";
+import { UNCERTAIN_THRESHOLD } from "../../hooks/useWebSocket";
 
 interface Props {
   onPatternReady: () => void;
@@ -45,7 +46,10 @@ const MonitoringScreen = ({ onPatternReady }: Props) => {
     setElapsed((current) => current + 1);
   }, [brainData]);
 
-  const emotion = useMemo(() => getEmotionMeta(brainData?.emotion), [brainData?.emotion]);
+  const emotion         = useMemo(() => getEmotionMeta(brainData?.emotion),         [brainData?.emotion]);
+  const detectedEmotion = useMemo(() => getEmotionMeta(brainData?.detectedEmotion), [brainData?.detectedEmotion]);
+  const isUncertain     = (brainData?.confidence ?? 0) < UNCERTAIN_THRESHOLD;
+  const showRawDiff     = brainData?.detectedEmotion !== undefined && brainData.detectedEmotion !== brainData?.emotion;
 
   const eegData = brainData?.eegData?.length ? trimSeries(brainData.eegData) : [];
   const alphaData = brainData?.alphaWave?.length ? trimSeries(brainData.alphaWave) : [];
@@ -211,27 +215,103 @@ const MonitoringScreen = ({ onPatternReady }: Props) => {
 
         {/* Side panels */}
         <div className="space-y-4">
-          {/* Emotion */}
+          {/* Emotion card */}
           <motion.div
             key={brainData?.emotion ?? emotion.label}
             initial={{ scale: 0.95, opacity: 0.8 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="glass-card-purple p-5"
+            className="glass-card-purple p-5 space-y-3"
           >
-            <div className="flex items-center gap-2 mb-3">
-              <Eye className="w-4 h-4 text-muted-foreground" />
-              <h3 className="text-xs font-mono text-muted-foreground">Detected Emotion</h3>
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4 text-muted-foreground" />
+                <h3 className="text-xs font-mono text-muted-foreground">
+                  {isUncertain ? "Uncertain State" : "Detected Emotion"}
+                </h3>
+              </div>
+              {isUncertain && (
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400/70" />
+              )}
             </div>
-            <p className="text-2xl font-bold" style={{ color: emotion.color }}>
-              {formatEmotionLabel(brainData?.emotion)}
+
+            {/* Primary emotion */}
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={brainData?.emotion}
+                initial={{ opacity: 0, x: -4 }}
+                animate={{ opacity: isUncertain ? 0.6 : 1, x: 0 }}
+                exit={{ opacity: 0, x: 4 }}
+                transition={{ duration: 0.3 }}
+                className="text-2xl font-bold"
+                style={{ color: emotion.color }}
+              >
+                {formatEmotionLabel(brainData?.emotion)}
+              </motion.p>
+            </AnimatePresence>
+
+            {/* EEG signature */}
+            <p className="text-[10px] font-mono text-muted-foreground/70 tracking-wide">
+              {emotion.eegSignature}
             </p>
-            <div className="mt-3 h-1.5 rounded-full overflow-hidden bg-muted/30">
+
+            {/* Confidence bar */}
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  {isUncertain ? "low confidence" : "confidence"}
+                </span>
+                <span className="text-[10px] font-mono" style={{ color: emotion.color }}>
+                  {Math.round(confidence)}%
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden bg-muted/30 relative">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ background: isUncertain ? "hsl(38 80% 50%)" : emotion.color }}
+                  animate={{ width: `${Math.max(confidence, 4)}%` }}
+                  transition={{ duration: 0.35 }}
+                />
+                {/* Threshold tick */}
+                <div
+                  className="absolute top-0 bottom-0 w-px bg-white/20"
+                  style={{ left: `${UNCERTAIN_THRESHOLD * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Raw detected emotion — shown when different from stabilised */}
+            {showRawDiff && (
               <motion.div
-                className="h-full rounded-full"
-                style={{ background: emotion.color }}
-                animate={{ width: `${Math.max(confidence, 12)}%` }}
-                transition={{ duration: 0.25 }}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="flex items-center justify-between pt-2 border-t border-white/5"
+              >
+                <span className="text-[10px] font-mono text-muted-foreground">raw frame</span>
+                <span
+                  className="text-[10px] font-mono font-bold"
+                  style={{ color: detectedEmotion.color }}
+                >
+                  {detectedEmotion.label}
+                  {brainData?.detectedConfidence !== undefined && (
+                    <span className="text-muted-foreground font-normal ml-1">
+                      {Math.round((brainData.detectedConfidence ?? 0) * 100)}%
+                    </span>
+                  )}
+                </span>
+              </motion.div>
+            )}
+
+            {/* LED pattern indicator */}
+            <div className="flex items-center gap-1.5 pt-1">
+              <div
+                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                style={{ background: emotion.color, boxShadow: `0 0 4px ${emotion.color}` }}
               />
+              <span className="text-[9px] font-mono text-muted-foreground/60 tracking-wide">
+                {emotion.ledPattern}
+              </span>
             </div>
           </motion.div>
 

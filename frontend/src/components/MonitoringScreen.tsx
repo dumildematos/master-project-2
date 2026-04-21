@@ -57,7 +57,7 @@ interface Props {
 
 export default function MonitoringScreen({ config, setConfig, onBack }: Props) {
   // ── Live data ───────────────────────────────────────────────────────────────
-  const { data, connected, hasSignal, history } = useWebSocket();
+  const { data, connected, hasSignal, history, emotionHistory } = useWebSocket();
   const [isUpdatingSensitivity, setIsUpdatingSensitivity] = React.useState(false);
   const [isUpdatingSmoothing, setIsUpdatingSmoothing] = React.useState(false);
   const updateTimeoutRef = React.useRef<number | null>(null);
@@ -300,6 +300,12 @@ export default function MonitoringScreen({ config, setConfig, onBack }: Props) {
               emotion={display.emotion}
               confidence={display.confidence}
               colorHue={display.params.colorHue}
+              detectedEmotion={display.detectedEmotion}
+              detectedConfidence={display.detectedConfidence}
+              isUncertain={display.isUncertain}
+              mindfulness={display.mindfulness}
+              restfulness={display.restfulness}
+              emotionHistory={emotionHistory}
             />
           </div>
           <GuidancePanel

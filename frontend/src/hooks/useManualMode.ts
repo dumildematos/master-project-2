@@ -101,6 +101,11 @@ function buildManualState(
     bands: { alpha, beta, theta, gamma, delta },
     emotion,
     confidence,
+    detectedEmotion: emotion,
+    detectedConfidence: confidence,
+    isUncertain: false,   // manual mode is always intentional — never uncertain
+    mindfulness: null,
+    restfulness: null,
     signal_quality: confidence * 100,
     vitals: {
       heartBpm: null,

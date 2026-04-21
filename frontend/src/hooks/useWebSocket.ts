@@ -15,6 +15,13 @@ export interface SentioState {
   };
   emotion: string;
   confidence: number;
+  /** Raw per-frame emotion before backend smoothing window */
+  detectedEmotion: string;
+  detectedConfidence: number;
+  /** True when confidence < UNCERTAIN_THRESHOLD */
+  isUncertain: boolean;
+  mindfulness: number | null;
+  restfulness: number | null;
   signal_quality: number;
   vitals: {
     heartBpm: number | null;
@@ -33,6 +40,9 @@ export interface SentioState {
   guidance: string;
 }
 
+/** Minimum confidence before we flag the detection as uncertain */
+export const UNCERTAIN_THRESHOLD = 0.42;
+
 export type BandHistory = {
   alpha: number;
   beta: number;
@@ -41,6 +51,15 @@ export type BandHistory = {
   delta: number;
   t: number;
 };
+
+export type EmotionHistoryEntry = {
+  emotion: string;
+  confidence: number;
+  t: number;
+};
+
+/** Max entries kept in the rolling emotion history */
+const EMOTION_HISTORY_MAX = 20;
 
 // Raw message shape sent by the backend (BrainStreamMessage)
 interface BackendMessage {
@@ -53,12 +72,15 @@ interface BackendMessage {
   signal_quality: number;
   emotion: string;
   confidence: number;
+  /** Raw single-frame detection before backend smoothing window */
+  detected_emotion?: string;
+  detected_confidence?: number;
   heart_bpm?: number | null;
   heart_confidence?: number | null;
   respiration_rpm?: number | null;
   respiration_confidence?: number | null;
-  mindfulness?: number;
-  restfulness?: number;
+  mindfulness?: number | null;
+  restfulness?: number | null;
   pattern_type?: string;
   pattern_complexity?: number;
   color_palette?: string[];
@@ -94,6 +116,17 @@ function clamp(v: number, lo = 0, hi = 1) {
 }
 
 // ---------------------------------------------------------------------------
+// Exponential moving average smoothing for visual params
+// Prevents jittery visuals from noisy beta/gamma frames.
+// ---------------------------------------------------------------------------
+const EMA_ALPHA = 0.25; // lower = smoother, higher = more reactive
+let _prevParams: SentioState["params"] | null = null;
+
+function ema(next: number, prev: number): number {
+  return parseFloat((EMA_ALPHA * next + (1 - EMA_ALPHA) * prev).toFixed(4));
+}
+
+// ---------------------------------------------------------------------------
 // Compute live visual params from actual EEG band values each frame
 //
 //  colorHue        → hue of the first palette colour sent by the backend,
@@ -102,6 +135,8 @@ function clamp(v: number, lo = 0, hi = 1) {
 //  distortion      → pattern_complexity from the backend pattern mapper
 //  particleDensity → alpha power weighted by signal confidence
 //  brightness      → alpha raises it, theta lowers it
+//
+// All values are passed through an EMA to smooth out noisy frames.
 // ---------------------------------------------------------------------------
 function computeParams(msg: BackendMessage): SentioState["params"] {
   const emotionMeta = getEmotionMeta(msg.emotion);
@@ -113,19 +148,35 @@ function computeParams(msg: BackendMessage): SentioState["params"] {
 
   // Colour hue: prefer backend palette, fallback to emotion preset
   const palette = msg.color_palette;
-  const colorHue = palette?.length ? hexToHue(palette[0]) : emotionMeta.hue;
+  const rawHue = palette?.length ? hexToHue(palette[0]) : emotionMeta.hue;
 
-  return {
-    colorHue,
-    flowSpeed: parseFloat(clamp(beta * 0.75 + complexity * 0.25).toFixed(3)),
-    distortion: parseFloat(clamp(complexity).toFixed(3)),
-    particleDensity: parseFloat(
-      clamp(alpha * 0.65 + confidence * 0.35).toFixed(3),
-    ),
-    brightness: parseFloat(
-      clamp(0.3 + alpha * 0.45 + (1 - theta) * 0.25).toFixed(3),
-    ),
+  const raw = {
+    colorHue: rawHue,
+    flowSpeed: clamp(beta * 0.75 + complexity * 0.25),
+    distortion: clamp(complexity),
+    particleDensity: clamp(alpha * 0.65 + confidence * 0.35),
+    brightness: clamp(0.3 + alpha * 0.45 + (1 - theta) * 0.25),
   };
+
+  if (!_prevParams) {
+    _prevParams = raw;
+    return raw;
+  }
+
+  // Hue needs circular interpolation to avoid jumping across 0/360
+  const hueDiff = ((raw.colorHue - _prevParams.colorHue + 540) % 360) - 180;
+  const smoothedHue = Math.round((_prevParams.colorHue + EMA_ALPHA * hueDiff + 360) % 360);
+
+  const smoothed = {
+    colorHue: smoothedHue,
+    flowSpeed:       parseFloat(ema(raw.flowSpeed,       _prevParams.flowSpeed).toFixed(3)),
+    distortion:      parseFloat(ema(raw.distortion,      _prevParams.distortion).toFixed(3)),
+    particleDensity: parseFloat(ema(raw.particleDensity, _prevParams.particleDensity).toFixed(3)),
+    brightness:      parseFloat(ema(raw.brightness,      _prevParams.brightness).toFixed(3)),
+  };
+
+  _prevParams = smoothed;
+  return smoothed;
 }
 
 // ---------------------------------------------------------------------------
@@ -133,19 +184,32 @@ function computeParams(msg: BackendMessage): SentioState["params"] {
 // ---------------------------------------------------------------------------
 function mapMessage(msg: BackendMessage): SentioState {
   const emotionMeta = getEmotionMeta(msg.emotion);
+  const confidence = msg.confidence ?? 0;
+
+  // detected_emotion is the raw single-frame label before backend smoothing.
+  // Fall back to the main emotion when not present.
+  const rawDetected = msg.detected_emotion ?? msg.emotion;
+  const detectedMeta = getEmotionMeta(rawDetected);
+
   return {
     bands: {
       alpha: msg.alpha ?? 0,
-      beta: msg.beta ?? 0,
+      beta:  msg.beta  ?? 0,
       theta: msg.theta ?? 0,
       gamma: msg.gamma ?? 0,
       delta: msg.delta ?? 0,
     },
-    emotion: emotionMeta.key,
-    confidence: msg.confidence ?? 0,
-    signal_quality: msg.signal_quality ?? 0,
+    emotion:            emotionMeta.key,
+    confidence,
+    detectedEmotion:    detectedMeta.key,
+    detectedConfidence: msg.detected_confidence ?? confidence,
+    isUncertain:        confidence < UNCERTAIN_THRESHOLD,
+    mindfulness:        typeof msg.mindfulness === "number" ? msg.mindfulness : null,
+    restfulness:        typeof msg.restfulness === "number" ? msg.restfulness  : null,
+    signal_quality:     msg.signal_quality ?? 0,
     vitals: {
-      heartBpm: typeof msg.heart_bpm === "number" ? msg.heart_bpm : null,
+      heartBpm:
+        typeof msg.heart_bpm === "number" ? msg.heart_bpm : null,
       heartConfidence:
         typeof msg.heart_confidence === "number" ? msg.heart_confidence : null,
       respirationRpm:
@@ -159,7 +223,7 @@ function mapMessage(msg: BackendMessage): SentioState {
           ? msg.config.heart_signal_source
           : null,
     },
-    params: computeParams(msg),
+    params:   computeParams(msg),
     guidance: emotionMeta.guidance,
   };
 }
@@ -171,6 +235,11 @@ const DEFAULT: SentioState = {
   bands: { alpha: 0, beta: 0, theta: 0, gamma: 0, delta: 0 },
   emotion: "neutral",
   confidence: 0,
+  detectedEmotion: "neutral",
+  detectedConfidence: 0,
+  isUncertain: true,
+  mindfulness: null,
+  restfulness: null,
   signal_quality: 0,
   vitals: {
     heartBpm: null,
@@ -200,6 +269,7 @@ export function useWebSocket() {
   const [connected, setConnected] = useState(false);
   const [hasSignal, setHasSignal] = useState(false);
   const [history, setHistory] = useState<BandHistory[]>([]);
+  const [emotionHistory, setEmotionHistory] = useState<EmotionHistoryEntry[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -232,6 +302,17 @@ export function useWebSocket() {
             ...previous.slice(-99),
             { ...mapped.bands, t: Date.now() },
           ]);
+          setEmotionHistory((previous) => {
+            const last = previous[previous.length - 1];
+            // Only append when emotion actually changes or every ~2 s
+            if (last && last.emotion === mapped.emotion && Date.now() - last.t < 2000) {
+              return previous;
+            }
+            return [
+              ...previous.slice(-(EMOTION_HISTORY_MAX - 1)),
+              { emotion: mapped.emotion, confidence: mapped.confidence, t: Date.now() },
+            ];
+          });
         } catch {
           // malformed frame — ignore
         }
@@ -242,6 +323,8 @@ export function useWebSocket() {
         setConnected(false);
         setHasSignal(false);
         setHistory([]);
+        setEmotionHistory([]);
+        _prevParams = null; // reset EMA on disconnect
         setTimeout(connect, 2000);
       };
 
@@ -255,5 +338,5 @@ export function useWebSocket() {
     };
   }, []);
 
-  return { data, connected, hasSignal, history };
+  return { data, connected, hasSignal, history, emotionHistory };
 }
