@@ -19,7 +19,11 @@ class Settings(BaseSettings):
             "http://10.208.193.106",
         ]
     )
-    cors_allowed_origin_regex: str = r"^https?://(localhost|127\.0\.0\.1|10\.208\.193\.106)(:\d+)?$"
+    # Allows: localhost / 127.0.0.1 (any port), LAN IP, and any *.vercel.app deploy
+    cors_allowed_origin_regex: str = (
+        r"^https?://(localhost|127\.0\.0\.1|10\.208\.193\.106)(:\d+)?$"
+        r"|^https://[a-zA-Z0-9\-]+\.vercel\.app$"
+    )
 
     # BrainFlow / Muse 2 configuration
     muse_device_source: str = "auto"
