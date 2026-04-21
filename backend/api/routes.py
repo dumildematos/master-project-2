@@ -7,7 +7,7 @@ from eeg.muse_connection import MuseConnection, MuseConnectionError
 from services.session_manager import SessionState, session_manager
 from eeg.calibration import CalibrationManager
 from patterns.pattern_mapper import PatternMapper
-from services.stream_service import osc_sender, start_streaming
+from services.stream_service import start_streaming
 from models.schemas import (
     SessionConfig,
     SessionStartResponse,
@@ -86,7 +86,6 @@ def start_session(config: SessionConfig):
     session_id = session_manager.start_session(session_config)
     session_manager.muse_connection = muse_connection
     session_manager.set_state(SessionState.CONNECTING)
-    # Do NOT send any OSC here — wait until the stream loop produces a real EEG frame.
     start_streaming()
     return {"session_id": session_id, "status": "started"}
 
@@ -163,10 +162,10 @@ def run_calibration():
 
 
 # -----------------------------
-# MANUAL OSC OVERRIDE ENDPOINT
+# MANUAL OVERRIDE ENDPOINT
 # -----------------------------
 
-class ManualOscPayload(BaseModel):
+class ManualOverridePayload(BaseModel):
     alpha:      float = Field(default=0.55, ge=0.0, le=1.0)
     beta:       float = Field(default=0.18, ge=0.0, le=1.0)
     theta:      float = Field(default=0.15, ge=0.0, le=1.0)
@@ -176,23 +175,28 @@ class ManualOscPayload(BaseModel):
     emotion:    str   = Field(default="calm")
 
 
-@router.post("/osc/manual", status_code=200)
-def send_manual_osc(payload: ManualOscPayload):
+@router.post("/manual/override", status_code=200)
+def send_manual_override(payload: ManualOverridePayload):
     """
-    Send manually overridden EEG band values and emotion directly to
-    TouchDesigner via OSC. Used by the frontend Manual Mode panel.
+    Inject manually overridden EEG band values and emotion into the live
+    WebSocket stream. Used by the frontend Manual Mode panel.
     """
-    osc_sender.send_fields({
-        "alpha":      payload.alpha,
-        "beta":       payload.beta,
-        "theta":      payload.theta,
-        "gamma":      payload.gamma,
-        "delta":      payload.delta,
-        "confidence": payload.confidence,
-        "emotion":    payload.emotion,
+    import time
+    from services.session_manager import session_manager as sm
+    message = {
+        "timestamp": float(time.time()),
+        "alpha":         payload.alpha,
+        "beta":          payload.beta,
+        "theta":         payload.theta,
+        "gamma":         payload.gamma,
+        "delta":         payload.delta,
+        "confidence":    payload.confidence,
+        "emotion":       payload.emotion,
         "signal_quality": payload.confidence * 100,
-        "active":     1,
-    })
+        "active":        1,
+        "manual":        True,
+    }
+    sm.set_latest_stream_message(message)
     return {"status": "ok", "emotion": payload.emotion}
 
 

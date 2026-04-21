@@ -120,10 +120,6 @@ class StreamConfiguration(BaseModel):
     pattern_type: PatternType
     signal_sensitivity: Optional[float] = None
     noise_control: Optional[float] = None
-    osc_enabled: bool
-    osc_host: str
-    osc_port: int
-    osc_stream_address: str
 
 
 # -----------------------------

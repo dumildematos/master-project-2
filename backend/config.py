@@ -51,11 +51,6 @@ class Settings(BaseSettings):
     # WebSocket
     ws_endpoint: str = "/ws/brain-stream"
 
-    # OSC / TouchDesigner
-    osc_enabled: bool = True
-    osc_host: str = "127.0.0.1"
-    osc_port: int = 7000
-    osc_stream_address: str = "/sentio"
 
 
 # Single global settings instance

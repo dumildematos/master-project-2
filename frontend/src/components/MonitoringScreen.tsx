@@ -224,7 +224,7 @@ export default function MonitoringScreen({ config, onBack }: Props) {
             <div className="flex items-center gap-6">
               {[
                 { label: "Device",      value: "Muse Headband"          },
-                { label: "Protocol",    value: "LSL → OSC + WS"         },
+                { label: "Protocol",    value: "LSL → WS → Arduino"     },
                 { label: "AI Model",    value: "Rule-Based v1"          },
                 { label: "Sensitivity", value: `${config.sensitivity}%` },
               ].map(({ label, value }) => (
@@ -250,7 +250,7 @@ export default function MonitoringScreen({ config, onBack }: Props) {
           </div>
         </motion.section>
 
-        {/* Right — Design params + TD status */}
+        {/* Right — Design params + Arduino status */}
         <motion.aside
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -261,15 +261,15 @@ export default function MonitoringScreen({ config, onBack }: Props) {
 
           <div className="glass-card p-5 flex flex-col gap-3">
             <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-              TouchDesigner
+              Arduino
             </p>
             <div className="flex flex-col gap-2">
               {[
-                { label: "OSC Port",  value: "7000",                                             ok: true },
-                { label: "Host",      value: "127.0.0.1",                                        ok: true },
-                { label: "Rendering", value: (connected || manual.isManual) ? "Active" : "Standby", ok: connected || manual.isManual },
-                { label: "Mode",      value: manual.isManual ? "Manual Override" : "Auto / Live", ok: true },
-                { label: "Pattern",   value: config.patternType,                                  ok: true },
+                { label: "Device",    value: "ESP32 + WS2812B",                                    ok: true },
+                { label: "Transport", value: "WebSocket",                                           ok: true },
+                { label: "LEDs",      value: (connected || manual.isManual) ? "Active" : "Standby", ok: connected || manual.isManual },
+                { label: "Mode",      value: manual.isManual ? "Manual Override" : "Auto / Live",   ok: true },
+                { label: "Pattern",   value: config.patternType,                                    ok: true },
               ].map(({ label, value, ok }) => (
                 <div key={label} className="flex justify-between items-center">
                   <span className="mono text-[11px] text-muted-foreground">{label}</span>
@@ -289,7 +289,6 @@ export default function MonitoringScreen({ config, onBack }: Props) {
         onClose={manual.deactivate}
         emotion={manual.emotion}
         bands={manual.bands}
-        oscMessages={manual.oscMessages}
         onSetEmotion={manual.setEmotion}
         onSetBand={manual.setBand}
         onCommitBand={manual.commitBand}

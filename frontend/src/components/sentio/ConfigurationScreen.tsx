@@ -3,8 +3,7 @@ import { motion } from "framer-motion";
 import { Brain, ChevronRight } from "lucide-react";
 import type { SessionConfig } from "@/pages/Index";
 import React from "react";
-
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+import { resolveApiBaseUrl } from "@/lib/runtimeConfig";
 
 const patternTypes = [
   { id: "organic", label: "Organic", desc: "Flowing natural forms" },
@@ -24,6 +23,7 @@ interface Props {
 const ConfigurationScreen = ({ config, setConfig, onStart }: Props) => {
     const [showDevicePopup, setShowDevicePopup] = React.useState(false);
     const [macAddress, setMacAddress] = React.useState("");
+  const apiBaseUrl = React.useMemo(() => resolveApiBaseUrl(), []);
 
     React.useEffect(() => {
       const storedMac = localStorage.getItem("muse2MacAddress");

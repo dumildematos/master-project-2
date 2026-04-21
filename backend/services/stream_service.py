@@ -7,7 +7,6 @@ from eeg.signal_processing import SignalProcessor
 from emotion.emotion_model import EmotionModel
 from models.schemas import PatternType
 from patterns.pattern_mapper import PatternMapper
-from services.osc_sender import OscStreamSender
 from services.session_manager import SessionState, session_manager
 
 logger = logging.getLogger("sentio.stream")
@@ -15,12 +14,6 @@ logger = logging.getLogger("sentio.stream")
 processor = SignalProcessor(settings.muse_sampling_rate)
 emotion_model = EmotionModel()
 pattern_mapper = PatternMapper()
-osc_sender = OscStreamSender(
-    enabled=settings.osc_enabled,
-    host=settings.osc_host,
-    port=settings.osc_port,
-    stream_address=settings.osc_stream_address,
-)
 
 
 def _get_selected_pattern() -> PatternType:
@@ -73,10 +66,6 @@ def _build_stream_config(muse_connection: MuseConnection, pattern_type: PatternT
         "pattern_type": pattern_type.value,
         "signal_sensitivity": session_manager.session_config.get("signal_sensitivity"),
         "noise_control": session_manager.session_config.get("noise_control"),
-        "osc_enabled": settings.osc_enabled,
-        "osc_host": settings.osc_host,
-        "osc_port": settings.osc_port,
-        "osc_stream_address": settings.osc_stream_address,
     }
 
 
@@ -125,8 +114,6 @@ def _start_stream_runtime(muse_connection: MuseConnection) -> tuple[PatternType,
     selected_pattern = _get_selected_pattern()
     stream_config = _build_stream_config(muse_connection, selected_pattern)
     session_manager.set_state(SessionState.RUNNING)
-    # Do NOT send active:1 here — the first real EEG frame already includes active:1.
-    # Sending early would push a packet to TouchDesigner before any signal exists.
     return selected_pattern, stream_config
 
 
@@ -268,7 +255,6 @@ def _process_stream_iteration(
     )
 
     session_manager.set_latest_stream_message(message)
-    osc_sender.send_payload(message)
     frames_emitted += 1
     last_progress_log = _log_frame_progress(message, frames_emitted, last_progress_log)
     time.sleep(settings.eeg_update_interval)
@@ -316,7 +302,6 @@ def _run_stream_loop():
     except Exception as exc:
         _handle_stream_error(exc, frames_emitted)
     finally:
-        osc_sender.send_fields({"active": 0})
         session_manager.mark_stream_stopped()
         logger.info(
             "Stream loop stopped session_id=%s emitted_frames=%s empty_reads=%s feature_failures=%s state=%s",
