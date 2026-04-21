@@ -1,19 +1,41 @@
 import time
 import logging
+from collections import deque
 
 from config import settings
 from eeg.muse_connection import MuseConnection
 from eeg.signal_processing import SignalProcessor
 from emotion.emotion_model import EmotionModel
-from models.schemas import PatternType
+from heart_rate import HeartRateProcessor
+from models.schemas import EmotionResult, EmotionType, PatternType
 from patterns.pattern_mapper import PatternMapper
 from services.session_manager import SessionState, session_manager
 
 logger = logging.getLogger("sentio.stream")
 
+IDLE_BACKOFF_SECONDS = 0.02
+EMOTION_HISTORY_MAXLEN = 7
+EMOTION_RECENCY_MIN_STEP = 0.12
+EMOTION_RECENCY_MAX_STEP = 0.75
+EMOTION_OVERRIDE_CONFIDENCE_BASE = 0.72
+EMOTION_OVERRIDE_CONFIDENCE_RANGE = 0.20
+
 processor = SignalProcessor(settings.muse_sampling_rate)
 emotion_model = EmotionModel()
 pattern_mapper = PatternMapper()
+emotion_window = deque(maxlen=EMOTION_HISTORY_MAXLEN)
+heart_rate_processor = HeartRateProcessor(
+    settings.muse_sampling_rate,
+    settings.heart_rate_window_seconds,
+)
+
+
+def _get_emotion_smoothing() -> float:
+    configured = session_manager.session_config.get("emotion_smoothing", 0.5)
+    try:
+        return min(max(float(configured), 0.0), 1.0)
+    except (TypeError, ValueError):
+        return 0.5
 
 
 def _get_selected_pattern() -> PatternType:
@@ -40,6 +62,8 @@ def _get_or_create_muse_connection() -> MuseConnection:
             serial_number=session_manager.session_config.get("serial_number") or settings.muse_serial_number,
             serial_port=session_manager.session_config.get("serial_port"),
             stream_name=session_manager.session_config.get("stream_name") or settings.bluemuse_stream_name,
+            ppg_stream_name=settings.bluemuse_ppg_stream_name,
+            ppg_lsl_stream_type=settings.bluemuse_ppg_lsl_stream_type,
             timeout=int(
                 session_manager.session_config.get("timeout") or settings.brainflow_connection_timeout
             ),
@@ -65,7 +89,9 @@ def _build_stream_config(muse_connection: MuseConnection, pattern_type: PatternT
         "update_interval": settings.eeg_update_interval,
         "pattern_type": pattern_type.value,
         "signal_sensitivity": session_manager.session_config.get("signal_sensitivity"),
+        "emotion_smoothing": session_manager.session_config.get("emotion_smoothing"),
         "noise_control": session_manager.session_config.get("noise_control"),
+        "heart_signal_source": muse_connection.heart_signal_source,
     }
 
 
@@ -111,6 +137,8 @@ def _start_stream_runtime(muse_connection: MuseConnection) -> tuple[PatternType,
     )
 
     processor.sampling_rate = int(muse_connection.sampling_rate or settings.muse_sampling_rate)
+    emotion_window.clear()
+    heart_rate_processor.reset(sample_rate=int(muse_connection.sampling_rate or settings.muse_sampling_rate))
     selected_pattern = _get_selected_pattern()
     stream_config = _build_stream_config(muse_connection, selected_pattern)
     session_manager.set_state(SessionState.RUNNING)
@@ -138,8 +166,19 @@ def _compute_signal_quality(features: dict) -> float:
     return round(quality, 1)
 
 
-def _build_stream_message(features, emotion_result, pattern_params, selected_pattern: PatternType, stream_config: dict) -> dict:
+def _build_stream_message(
+    features,
+    emotion_result,
+    pattern_params,
+    selected_pattern: PatternType,
+    stream_config: dict,
+    heart_metrics: dict | None,
+) -> dict:
     stream_config["state"] = session_manager.session_state
+    stream_config["signal_sensitivity"] = session_manager.session_config.get("signal_sensitivity")
+    stream_config["emotion_smoothing"] = session_manager.session_config.get("emotion_smoothing")
+    stream_config["noise_control"] = session_manager.session_config.get("noise_control")
+    stream_config["heart_signal_source"] = stream_config.get("heart_signal_source")
     return {
         "timestamp": float(time.time()),
         "alpha": float(features["alpha"]),
@@ -148,8 +187,22 @@ def _build_stream_message(features, emotion_result, pattern_params, selected_pat
         "theta": float(features["theta"]),
         "delta": float(features["delta"]),
         "signal_quality": _compute_signal_quality(features),
+        "heart_bpm": heart_metrics.get("heart_bpm") if heart_metrics else None,
+        "heart_confidence": heart_metrics.get("heart_confidence") if heart_metrics else None,
+        "respiration_rpm": heart_metrics.get("respiration_rpm") if heart_metrics else None,
+        "respiration_confidence": heart_metrics.get("respiration_confidence") if heart_metrics else None,
         "emotion": emotion_result.emotion.value,
         "confidence": float(emotion_result.confidence),
+        "detected_emotion": (
+            emotion_result.detected_emotion.value
+            if emotion_result.detected_emotion is not None
+            else emotion_result.emotion.value
+        ),
+        "detected_confidence": (
+            float(emotion_result.detected_confidence)
+            if emotion_result.detected_confidence is not None
+            else float(emotion_result.confidence)
+        ),
         "mindfulness": (
             float(emotion_result.mindfulness)
             if emotion_result.mindfulness is not None
@@ -169,6 +222,54 @@ def _build_stream_message(features, emotion_result, pattern_params, selected_pat
         "pattern_type": selected_pattern.value,
         "active": 1,
     }
+
+
+def _compute_heart_metrics(muse_connection: MuseConnection, stream_config: dict) -> dict | None:
+    target_window = max(
+        int((muse_connection.sampling_rate or settings.muse_sampling_rate) * settings.heart_rate_window_seconds),
+        settings.muse_window_size,
+    )
+    signal, sample_rate, source = muse_connection.get_heart_signal(window_size=target_window)
+    stream_config["heart_signal_source"] = source
+
+    if signal is None or sample_rate is None or sample_rate <= 0:
+        return None
+
+    return heart_rate_processor.update(signal, sample_rate=sample_rate)
+
+
+def _stabilize_emotion(emotion_result: EmotionResult) -> EmotionResult:
+    emotion_window.append((emotion_result.emotion, float(emotion_result.confidence)))
+
+    smoothing = _get_emotion_smoothing()
+    active_window_size = max(1, int(round(1 + (smoothing * (EMOTION_HISTORY_MAXLEN - 1)))))
+    recent_emotions = list(emotion_window)[-active_window_size:]
+    recency_step = EMOTION_RECENCY_MAX_STEP - (
+        smoothing * (EMOTION_RECENCY_MAX_STEP - EMOTION_RECENCY_MIN_STEP)
+    )
+
+    weighted_scores: dict[EmotionType, float] = {}
+    for index, (emotion, confidence) in enumerate(reversed(recent_emotions)):
+        recency_weight = 1.0 + (index * recency_step)
+        weighted_scores[emotion] = weighted_scores.get(emotion, 0.0) + (confidence / recency_weight)
+
+    stable_emotion = max(weighted_scores, key=weighted_scores.get, default=emotion_result.emotion)
+    stable_confidence = weighted_scores.get(stable_emotion, float(emotion_result.confidence)) / max(len(recent_emotions), 1)
+
+    override_threshold = EMOTION_OVERRIDE_CONFIDENCE_BASE + (smoothing * EMOTION_OVERRIDE_CONFIDENCE_RANGE)
+    if stable_emotion != emotion_result.emotion and float(emotion_result.confidence) >= override_threshold:
+        stable_emotion = emotion_result.emotion
+        stable_confidence = float(emotion_result.confidence)
+
+    if stable_emotion == emotion_result.emotion:
+        stable_confidence = max(stable_confidence, float(emotion_result.confidence))
+
+    return emotion_result.model_copy(update={
+        "emotion": stable_emotion,
+        "confidence": round(float(min(max(stable_confidence, 0.0), 1.0)), 3),
+        "detected_emotion": emotion_result.emotion,
+        "detected_confidence": round(float(emotion_result.confidence), 3),
+    })
 
 
 def _log_frame_progress(message: dict, frames_emitted: int, last_progress_log: float) -> float:
@@ -215,7 +316,7 @@ def _process_stream_iteration(
     if eeg_data is None:
         empty_reads += 1
         last_no_data_log = _log_empty_read(muse_connection, empty_reads, last_no_data_log)
-        time.sleep(0.1)
+        time.sleep(IDLE_BACKOFF_SECONDS)
         return (
             last_no_data_log,
             last_no_features_log,
@@ -229,7 +330,7 @@ def _process_stream_iteration(
     if features is None:
         feature_failures += 1
         last_no_features_log = _log_feature_failure(eeg_data, feature_failures, last_no_features_log)
-        time.sleep(0.1)
+        time.sleep(IDLE_BACKOFF_SECONDS)
         return (
             last_no_data_log,
             last_no_features_log,
@@ -239,19 +340,30 @@ def _process_stream_iteration(
             frames_emitted,
         )
 
-    emotion_result = emotion_model.predict(features)
-    session_manager.add_emotion(emotion_result.emotion.value)
+    emotion_result = _stabilize_emotion(emotion_model.predict(features))
+    session_manager.add_emotion(
+        emotion_result.emotion.value,
+        confidence=float(emotion_result.confidence),
+        detected_emotion=(
+            emotion_result.detected_emotion.value
+            if emotion_result.detected_emotion is not None
+            else emotion_result.emotion.value
+        ),
+    )
     pattern_params = pattern_mapper.map_pattern(
         emotion=emotion_result.emotion,
         eeg_features=features,
         selected_pattern=selected_pattern,
+        signal_sensitivity=float(session_manager.session_config.get("signal_sensitivity", 0.5) or 0.5),
     )
+    heart_metrics = _compute_heart_metrics(muse_connection, stream_config)
     message = _build_stream_message(
         features,
         emotion_result,
         pattern_params,
         selected_pattern,
         stream_config,
+        heart_metrics,
     )
 
     session_manager.set_latest_stream_message(message)

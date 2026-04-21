@@ -10,6 +10,7 @@ export default function App() {
   const [config, setConfig] = useState<SessionConfig>({
     patternType: "organic",
     sensitivity: 50,
+    smoothing: 50,
   });
 
   return (
@@ -35,6 +36,7 @@ export default function App() {
           <MonitoringScreen
             key="monitoring"
             config={config}
+            setConfig={setConfig}
             onBack={() => setScreen("config")}
           />
         )}

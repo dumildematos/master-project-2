@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { getEmotionMeta } from "../lib/emotionMeta";
 import { resolveBrainStreamUrl } from "../lib/runtimeConfig";
 
 // ---------------------------------------------------------------------------
@@ -15,6 +16,13 @@ export interface SentioState {
   emotion: string;
   confidence: number;
   signal_quality: number;
+  vitals: {
+    heartBpm: number | null;
+    heartConfidence: number | null;
+    respirationRpm: number | null;
+    respirationConfidence: number | null;
+    source: string | null;
+  };
   params: {
     colorHue: number;
     flowSpeed: number;
@@ -45,34 +53,21 @@ interface BackendMessage {
   signal_quality: number;
   emotion: string;
   confidence: number;
+  heart_bpm?: number | null;
+  heart_confidence?: number | null;
+  respiration_rpm?: number | null;
+  respiration_confidence?: number | null;
   mindfulness?: number;
   restfulness?: number;
   pattern_type?: string;
   pattern_complexity?: number;
   color_palette?: string[];
+  config?: {
+    heart_signal_source?: string | null;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
-
-// ---------------------------------------------------------------------------
-// Emotion → base hue (colour identity per state)
-// ---------------------------------------------------------------------------
-const EMOTION_HUE: Record<string, number> = {
-  calm: 210,
-  focused: 40,
-  stressed: 0,
-  relaxed: 180,
-  excited: 30,
-  neutral: 120,
-};
-
-const GUIDANCE: Record<string, string> = {
-  calm: "You're calm. Maintain this state to deepen the flowing visuals.",
-  focused: "High focus detected. The garment sharpens and becomes structured.",
-  stressed: "Try to relax — take a slow breath to soften the visuals.",
-  relaxed: "Gentle state detected. Soft, slow forms are emerging.",
-  excited: "Excitement detected. Dynamic, vibrant patterns are forming.",
-  neutral: "Keep exploring your mental state to influence the design.",
-};
 
 // ---------------------------------------------------------------------------
 // Convert a hex colour to its HSL hue (0–360)
@@ -109,7 +104,7 @@ function clamp(v: number, lo = 0, hi = 1) {
 //  brightness      → alpha raises it, theta lowers it
 // ---------------------------------------------------------------------------
 function computeParams(msg: BackendMessage): SentioState["params"] {
-  const emotion = msg.emotion ?? "neutral";
+  const emotionMeta = getEmotionMeta(msg.emotion);
   const alpha = clamp(msg.alpha ?? 0);
   const beta = clamp(msg.beta ?? 0);
   const theta = clamp(msg.theta ?? 0);
@@ -118,9 +113,7 @@ function computeParams(msg: BackendMessage): SentioState["params"] {
 
   // Colour hue: prefer backend palette, fallback to emotion preset
   const palette = msg.color_palette;
-  const colorHue = palette?.length
-    ? hexToHue(palette[0])
-    : (EMOTION_HUE[emotion] ?? 120);
+  const colorHue = palette?.length ? hexToHue(palette[0]) : emotionMeta.hue;
 
   return {
     colorHue,
@@ -139,7 +132,7 @@ function computeParams(msg: BackendMessage): SentioState["params"] {
 // Map raw backend frame → SentioState
 // ---------------------------------------------------------------------------
 function mapMessage(msg: BackendMessage): SentioState {
-  const emotion = msg.emotion ?? "neutral";
+  const emotionMeta = getEmotionMeta(msg.emotion);
   return {
     bands: {
       alpha: msg.alpha ?? 0,
@@ -148,11 +141,26 @@ function mapMessage(msg: BackendMessage): SentioState {
       gamma: msg.gamma ?? 0,
       delta: msg.delta ?? 0,
     },
-    emotion,
+    emotion: emotionMeta.key,
     confidence: msg.confidence ?? 0,
     signal_quality: msg.signal_quality ?? 0,
+    vitals: {
+      heartBpm: typeof msg.heart_bpm === "number" ? msg.heart_bpm : null,
+      heartConfidence:
+        typeof msg.heart_confidence === "number" ? msg.heart_confidence : null,
+      respirationRpm:
+        typeof msg.respiration_rpm === "number" ? msg.respiration_rpm : null,
+      respirationConfidence:
+        typeof msg.respiration_confidence === "number"
+          ? msg.respiration_confidence
+          : null,
+      source:
+        msg.config && typeof msg.config.heart_signal_source === "string"
+          ? msg.config.heart_signal_source
+          : null,
+    },
     params: computeParams(msg),
-    guidance: GUIDANCE[emotion] ?? GUIDANCE["neutral"],
+    guidance: emotionMeta.guidance,
   };
 }
 
@@ -164,6 +172,13 @@ const DEFAULT: SentioState = {
   emotion: "neutral",
   confidence: 0,
   signal_quality: 0,
+  vitals: {
+    heartBpm: null,
+    heartConfidence: null,
+    respirationRpm: null,
+    respirationConfidence: null,
+    source: null,
+  },
   params: {
     colorHue: 120,
     flowSpeed: 0,
@@ -184,7 +199,7 @@ export function useWebSocket() {
   const [data, setData] = useState<SentioState>(DEFAULT);
   const [connected, setConnected] = useState(false);
   const [hasSignal, setHasSignal] = useState(false);
-  const historyRef = useRef<BandHistory[]>([]);
+  const [history, setHistory] = useState<BandHistory[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -213,10 +228,10 @@ export function useWebSocket() {
           const mapped = mapMessage(raw as BackendMessage);
           setData(mapped);
           setHasSignal(true);
-          historyRef.current = [
-            ...historyRef.current.slice(-99),
+          setHistory((previous) => [
+            ...previous.slice(-99),
             { ...mapped.bands, t: Date.now() },
-          ];
+          ]);
         } catch {
           // malformed frame — ignore
         }
@@ -226,6 +241,7 @@ export function useWebSocket() {
         if (cancelled) return;
         setConnected(false);
         setHasSignal(false);
+        setHistory([]);
         setTimeout(connect, 2000);
       };
 
@@ -239,5 +255,5 @@ export function useWebSocket() {
     };
   }, []);
 
-  return { data, connected, hasSignal, historyRef };
+  return { data, connected, hasSignal, history };
 }

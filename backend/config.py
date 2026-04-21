@@ -29,17 +29,20 @@ class Settings(BaseSettings):
     muse_device_source: str = "auto"
     muse_board_id: int = 38  # BoardIds.MUSE_2_BOARD.value
     muse_sampling_rate: int = 256  # Hz
-    muse_window_size: int = 256  # samples per read
+    muse_window_size: int = 128  # samples per read for lower stream latency
     muse_mac_address: str | None = None
     muse_serial_number: str | None = None
     brainflow_connection_timeout: int = 15
     brainflow_stream_buffer_size: int = 45000
     bluemuse_stream_name: str | None = None
     bluemuse_lsl_stream_type: str = "EEG"
+    bluemuse_ppg_stream_name: str | None = None
+    bluemuse_ppg_lsl_stream_type: str = "PPG"
     bluemuse_lsl_resolve_timeout: float = 3.0
 
     # EEG processing
-    eeg_update_interval: float = 0.2  # seconds between WebSocket updates
+    eeg_update_interval: float = 0.05  # target cadence for publishing fresh EEG frames
+    heart_rate_window_seconds: float = 12.0
 
     # Calibration
     calibration_duration: int = 5  # seconds for baseline

@@ -34,6 +34,8 @@ def _build_muse_connection(session_config: dict) -> MuseConnection:
         serial_number=session_config.get("serial_number") or settings.muse_serial_number,
         serial_port=session_config.get("serial_port"),
         stream_name=session_config.get("stream_name") or settings.bluemuse_stream_name,
+        ppg_stream_name=settings.bluemuse_ppg_stream_name,
+        ppg_lsl_stream_type=settings.bluemuse_ppg_lsl_stream_type,
         timeout=int(session_config.get("timeout") or settings.brainflow_connection_timeout),
         stream_buffer_size=settings.brainflow_stream_buffer_size,
         lsl_stream_type=settings.bluemuse_lsl_stream_type,
@@ -111,6 +113,46 @@ def get_session_status():
         start_time=info["start_time"],
         emotion_history_length=info["emotion_history_length"]
     )
+
+
+class SessionSensitivityUpdate(BaseModel):
+    sensitivity: float = Field(..., ge=0.0, le=1.0)
+
+
+class SessionEmotionSmoothingUpdate(BaseModel):
+    smoothing: float = Field(..., ge=0.0, le=1.0)
+
+
+@router.patch("/session/sensitivity")
+def update_session_sensitivity(payload: SessionSensitivityUpdate):
+    """
+    Update signal sensitivity during an active EEG session.
+    """
+    if session_manager.current_session_id is None:
+        raise HTTPException(status_code=400, detail="No active session")
+
+    updated = session_manager.update_session_config({"signal_sensitivity": float(payload.sensitivity)})
+    return {
+        "status": "updated",
+        "session_id": session_manager.current_session_id,
+        "signal_sensitivity": updated.get("signal_sensitivity"),
+    }
+
+
+@router.patch("/session/emotion-smoothing")
+def update_session_emotion_smoothing(payload: SessionEmotionSmoothingUpdate):
+    """
+    Update emotion smoothing during an active EEG session.
+    """
+    if session_manager.current_session_id is None:
+        raise HTTPException(status_code=400, detail="No active session")
+
+    updated = session_manager.update_session_config({"emotion_smoothing": float(payload.smoothing)})
+    return {
+        "status": "updated",
+        "session_id": session_manager.current_session_id,
+        "emotion_smoothing": updated.get("emotion_smoothing"),
+    }
 
 
 # -----------------------------

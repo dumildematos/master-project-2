@@ -47,7 +47,8 @@ class PatternMapper:
         self,
         emotion: EmotionType,
         eeg_features: Dict[str, float],
-        selected_pattern: PatternType
+        selected_pattern: PatternType,
+        signal_sensitivity: float = 0.5,
     ) -> PatternParameters:
         """
         Convert emotion + EEG data into pattern parameters.
@@ -57,7 +58,7 @@ class PatternMapper:
         beta = eeg_features.get("beta", 0.5)
         gamma = eeg_features.get("gamma", 0.5)
 
-        complexity = self._compute_complexity(alpha, beta, gamma)
+        complexity = self._compute_complexity(alpha, beta, gamma, signal_sensitivity)
 
         palette = self.emotion_color_palettes.get(
             emotion,
@@ -73,7 +74,7 @@ class PatternMapper:
             pattern_seed=pattern_seed
         )
 
-    def _compute_complexity(self, alpha: float, beta: float, gamma: float) -> float:
+    def _compute_complexity(self, alpha: float, beta: float, gamma: float, signal_sensitivity: float) -> float:
         """
         Compute pattern complexity based on EEG energy.
         Higher beta/gamma -> more energetic patterns.
@@ -81,6 +82,8 @@ class PatternMapper:
 
         energy = (alpha * 0.3) + (beta * 0.4) + (gamma * 0.3)
 
-        complexity = min(max(energy, 0.1), 1.0)
+        sensitivity = min(max(signal_sensitivity, 0.0), 1.0)
+        sensitivity_gain = 0.55 + sensitivity * 0.9
+        complexity = min(max(energy * sensitivity_gain, 0.1), 1.0)
 
         return complexity

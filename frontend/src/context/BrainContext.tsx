@@ -24,6 +24,10 @@ export interface BrainData {
   gamma: number;
   delta: number;
   theta: number;
+  heartBpm: number | null;
+  heartConfidence: number | null;
+  respirationRpm: number | null;
+  respirationConfidence: number | null;
   patternSeed: number | null;
   signal_quality: number;
   emotion: string;
@@ -108,6 +112,10 @@ const parseBrainStreamPayload = (payload: Record<string, unknown>, previous: Bra
     gamma,
     delta,
     theta,
+    heartBpm: typeof payload.heart_bpm === "number" ? payload.heart_bpm : previous?.heartBpm ?? null,
+    heartConfidence: typeof payload.heart_confidence === "number" ? payload.heart_confidence : previous?.heartConfidence ?? null,
+    respirationRpm: typeof payload.respiration_rpm === "number" ? payload.respiration_rpm : previous?.respirationRpm ?? null,
+    respirationConfidence: typeof payload.respiration_confidence === "number" ? payload.respiration_confidence : previous?.respirationConfidence ?? null,
     patternSeed: typeof payload.pattern_seed === "number" ? payload.pattern_seed : previous?.patternSeed ?? null,
     signal_quality: toPercent(payload.signal_quality, parseNumber(payload.signal)),
     emotion: toEmotionLabel(payload.emotion),

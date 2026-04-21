@@ -53,6 +53,7 @@ const ConfigurationScreen = ({ config, setConfig, onStart }: Props) => {
           gender: config.gender,
           pattern_type: config.patternType,
           signal_sensitivity: config.sensitivity / 100, // Convert to 0-1 range
+          emotion_smoothing: config.smoothing / 100,
           noise_control: 1,
           mac_address: macAddress || undefined, // 
         }),
@@ -250,6 +251,25 @@ const ConfigurationScreen = ({ config, setConfig, onStart }: Props) => {
           <div className="flex justify-between text-xs text-muted-foreground font-mono">
             <span>Low noise</span>
             <span>High detail</span>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <label className="text-sm text-muted-foreground font-mono">State Smoothing</label>
+            <span className="text-xs font-mono text-primary">{config.smoothing}%</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={config.smoothing}
+            onChange={(e) => setConfig({ ...config, smoothing: Number(e.target.value) })}
+            className="w-full accent-primary h-1.5 bg-muted rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-[0_0_10px_hsl(187_80%_55%/0.5)]"
+          />
+          <div className="flex justify-between text-xs text-muted-foreground font-mono">
+            <span>Reactive</span>
+            <span>Stable</span>
           </div>
         </div>
 

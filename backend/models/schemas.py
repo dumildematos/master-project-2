@@ -37,6 +37,7 @@ class SessionConfig(BaseModel):
     gender: Optional[str] = Field(default=None)
     pattern_type: PatternType
     signal_sensitivity: float = Field(..., ge=0.0, le=1.0)
+    emotion_smoothing: float = Field(default=0.5, ge=0.0, le=1.0)
     noise_control: float = Field(default=1.0, ge=0.0, le=1.0)
     device_source: DeviceSource = Field(default=DeviceSource.auto, description="EEG transport: auto, brainflow, or bluemuse.")
     board_id: int = Field(default=38, description="BrainFlow board id. Muse 2 uses 38.")
@@ -91,6 +92,8 @@ class EEGData(BaseModel):
 class EmotionResult(BaseModel):
     emotion: EmotionType
     confidence: float
+    detected_emotion: Optional[EmotionType] = None
+    detected_confidence: Optional[float] = None
     mindfulness: Optional[float] = None
     restfulness: Optional[float] = None
 
@@ -119,7 +122,9 @@ class StreamConfiguration(BaseModel):
     update_interval: float
     pattern_type: PatternType
     signal_sensitivity: Optional[float] = None
+    emotion_smoothing: Optional[float] = None
     noise_control: Optional[float] = None
+    heart_signal_source: Optional[str] = None
 
 
 # -----------------------------
@@ -136,9 +141,15 @@ class BrainStreamMessage(BaseModel):
     delta: float
 
     signal_quality: float
+    heart_bpm: Optional[float] = None
+    heart_confidence: Optional[float] = None
+    respiration_rpm: Optional[float] = None
+    respiration_confidence: Optional[float] = None
 
     emotion: EmotionType
     confidence: float
+    detected_emotion: Optional[EmotionType] = None
+    detected_confidence: Optional[float] = None
     mindfulness: Optional[float] = None
     restfulness: Optional[float] = None
 

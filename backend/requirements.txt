@@ -6,6 +6,7 @@ scikit-learn==1.8.0
 pylsl==1.17.6
 pydantic==2.6.1
 brainflow==5.8.0
+heartpy==1.2.7
 python-dotenv==1.0.0
 black==24.3.0
 isort==6.1.0

@@ -111,39 +111,79 @@ CRGB hexToRgb(const char* hex) {
 }
 
 // =============================================================================
-//  EMOTION → HUE  (maps backend emotion strings to FastLED hue 0–255)
+//  EMOTION → PALETTE  (kept in sync with backend pattern palettes)
 // =============================================================================
 
 uint8_t emotionHue(const String& e) {
-  if (e == "calm")     return 140;   // ~210° cyan-blue
-  if (e == "relaxed")  return 120;   // ~180° teal
-  if (e == "focused")  return 28;    // ~40°  amber
-  if (e == "excited")  return 200;   // ~285° magenta
-  if (e == "stressed") return 0;     // 0°    red
-  return 96;                         // ~140° green = neutral
+  if (e == "calm")     return 149;   // calm blue-gray
+  if (e == "relaxed")  return 123;   // soft green
+  if (e == "focused")  return 153;   // electric blue
+  if (e == "excited")  return 232;   // magenta-pink
+  if (e == "stressed") return 0;     // intense red
+  return 96;                           // neutral green fallback
 }
 
-// Set primary/secondary/accent from a single base hue (fallback palette)
-void paletteFromHue(uint8_t h) {
-  state.primary   = CHSV(h,       220, 255);
-  state.secondary = CHSV(h + 18,  180, 220);
-  state.accent    = CHSV(h + 36,  150, 210);
-  state.shadow    = scaleC(CHSV(h + 128, 120, 80), 60);
+void paletteFromEmotion(const String& emotion) {
+  if (emotion == "calm") {
+    state.primary   = hexToRgb("#4F6D7A");
+    state.secondary = hexToRgb("#A6C8D8");
+    state.accent    = hexToRgb("#E6F1F5");
+    state.shadow    = hexToRgb("#2E4057");
+    return;
+  }
+
+  if (emotion == "focused") {
+    state.primary   = hexToRgb("#3A86FF");
+    state.secondary = hexToRgb("#4361EE");
+    state.accent    = hexToRgb("#4CC9F0");
+    state.shadow    = hexToRgb("#1D3557");
+    return;
+  }
+
+  if (emotion == "relaxed") {
+    state.primary   = hexToRgb("#A8DADC");
+    state.secondary = hexToRgb("#F1FAEE");
+    state.accent    = hexToRgb("#B7E4C7");
+    state.shadow    = hexToRgb("#52B788");
+    return;
+  }
+
+  if (emotion == "excited") {
+    state.primary   = hexToRgb("#FF006E");
+    state.secondary = hexToRgb("#FB5607");
+    state.accent    = hexToRgb("#FFBE0B");
+    state.shadow    = hexToRgb("#FF7F51");
+    return;
+  }
+
+  if (emotion == "stressed") {
+    state.primary   = hexToRgb("#6A040F");
+    state.secondary = hexToRgb("#9D0208");
+    state.accent    = hexToRgb("#D00000");
+    state.shadow    = hexToRgb("#370617");
+    return;
+  }
+
+  state.primary   = CHSV(96,  220, 255);
+  state.secondary = CHSV(114, 180, 220);
+  state.accent    = CHSV(132, 150, 210);
+  state.shadow    = scaleC(CHSV(224, 120, 80), 60);
 }
 
 // Apply the backend colour palette array if present, else fall back to hue
 void applyPalette(JsonArrayConst palette) {
   if (palette.isNull() || palette.size() == 0) {
-    paletteFromHue(state.hue);
+    paletteFromEmotion(state.emotion);
     return;
   }
   CRGB p = hexToRgb(palette[0] | "");
   CRGB s = palette.size() > 1 ? hexToRgb(palette[1] | "") : CRGB::Black;
   CRGB a = palette.size() > 2 ? hexToRgb(palette[2] | "") : CRGB::Black;
-  state.primary   = (p == CRGB::Black) ? CHSV(state.hue,      220, 255) : p;
-  state.secondary = (s == CRGB::Black) ? CHSV(state.hue + 18, 180, 220) : s;
-  state.accent    = (a == CRGB::Black) ? CHSV(state.hue + 36, 150, 210) : a;
-  state.shadow    = scaleC(state.primary, 30);
+  paletteFromEmotion(state.emotion);
+  if (p != CRGB::Black) state.primary = p;
+  if (s != CRGB::Black) state.secondary = s;
+  if (a != CRGB::Black) state.accent = a;
+  state.shadow = blendF(state.shadow, scaleC(state.primary, 30), 0.5f);
 }
 
 // Resolve pattern type from "pattern_type" or nested "config.pattern_type"
@@ -493,7 +533,7 @@ void setup() {
   FastLED.show();
 
   initStars();
-  paletteFromHue(96);   // start with neutral green palette
+  paletteFromEmotion("neutral");   // start with neutral palette
 
   // ── WiFi ─────────────────────────────────────────────────────────────────
   connectWifi();
