@@ -87,30 +87,38 @@ See **[arduino/README.md](arduino/README.md)** for the full setup guide.
 
 ## Emotion → LED Pattern Mapping
 
-| Emotion | Pattern | Colour Palette |
-|---------|---------|----------------|
-| Calm | Fluid Waves | Steel blue → powder blue |
-| Relaxed | Fluid Waves | Mint → aqua green |
-| Focused | Geometric Rings | Electric blue → sky blue |
-| Excited | Rhythmic Pulse | Magenta → orange → amber |
-| Stressed | Rhythmic Pulse | Deep crimson → dark red |
-| *(no signal)* | Idle Breathing | Dim white pulse |
+| Emotion | Pattern | Colour Palette | Visual Feel |
+|---------|---------|----------------|------------|
+| Calm | Fluid Waves | Steel blue → powder blue | Slow, flowing sine ripples |
+| Relaxed | Fluid Waves | Mint → aqua green | Gentle, organic movement |
+| Focused | Geometric Rings | Electric blue → sky | Sharp concentric rings |
+| Excited | Rhythmic Pulse | Magenta → orange → amber | Fast, energetic bursts |
+| Stressed | Rhythmic Pulse | Deep crimson → dark red | Urgent pulsing |
+| *(no signal)* | Idle Breathing | Dim white pulse | Slow heartbeat waiting |
+
+Brightness auto-scales from the live `signal_quality` and `confidence` values —
+the shirt glows brighter when the EEG signal is cleaner.
 
 ---
 
-## LED Grid Configuration (`config.h`)
+## LED Strip Configuration (`config.h`)
+
+The strip runs in **serpentine rows** across the shirt body.  At 60 LEDs/m the
+spacing between LEDs is 1.67 cm, so a 42 cm wide shirt fits ~25 LEDs/row and
+12 rows = 300 LEDs — the full 5 m roll.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `LED_PIN` | `18` | ESP32 GPIO data pin |
-| `MATRIX_W` / `MATRIX_H` | `8` / `8` | Grid dimensions |
-| `MATRIX_SERPENTINE` | `true` | Serpentine wiring layout |
-| `MATRIX_FLIP_Y` | `false` | Flip Y axis if mounted upside-down |
-| `MAX_BRIGHTNESS` | `80` | 0–255 (keep ≤ 100 on USB power) |
-| `COLOR_ORDER` | `GRB` | Most WS2812B strips use GRB |
+| `LED_PIN` | `18` | ESP32 GPIO data pin (via 330 Ω resistor) |
+| `MATRIX_W` | `25` | LEDs per row — set to match your shirt width |
+| `MATRIX_H` | `12` | Number of rows — set to match shirt height |
+| `MATRIX_SERPENTINE` | `true` | Odd rows run right-to-left (standard strip layout) |
+| `MATRIX_FLIP_Y` | `false` | Flip Y if row 0 is at the shirt hem, not collar |
+| `MAX_BRIGHTNESS` | `60` | 24 % — vivid through fabric, safe on USB bank |
+| `COLOR_ORDER` | `GRB` | BTF-LIGHTING WS2812B uses GRB |
 | `TARGET_FPS` | `30` | Animation frame rate |
-| `SIGNAL_THRESHOLD` | `20` | Min signal quality before idle pattern |
-| `WS_HOST` | `"192.168.1.100"` | Backend IP / hostname |
+| `SIGNAL_THRESHOLD` | `20` | Min signal quality before switching to idle pattern |
+| `WS_HOST` | `"192.168.1.100"` | Backend IP — run `ipconfig` / `ifconfig` to find it |
 | `WS_PORT` | `8000` | Backend port |
 
 ---
@@ -171,16 +179,18 @@ Set `VITE_API_BASE_URL=/_/backend` in `frontend/.env.production`.
 
 ---
 
-## Hardware Requirements
+## Hardware
 
-| Component | Details |
-|-----------|---------|
-| Muse 2 headband | EEG source — 4 channels, 256 Hz |
-| ESP32 dev board | WiFi + WebSocket client |
-| WS2812B LED strip / matrix | 8×8 = 64 LEDs (scalable) |
-| 5 V / 3 A power supply | For 64 LEDs at full brightness |
-| 300–500 Ω resistor | Data line protection |
-| 1000 µF capacitor | Power rail decoupling |
+| Component | Model / Spec | Notes |
+|-----------|-------------|-------|
+| EEG headband | Muse 2 | 4-channel EEG, 256 Hz via Bluetooth |
+| Microcontroller | ESP32 Dev Module | WiFi + WebSocket client |
+| LED strip | **BTF-LIGHTING WS2812B 5 m · 60 LEDs/m · DC 5 V** | 300 addressable RGB LEDs sewn inside the t-shirt |
+| Power — portable | USB power bank ≥ 10 000 mAh (5 V / 3 A output) | Set `MAX_BRIGHTNESS 40`; powers ~2–3 h |
+| Power — performance | 5 V / 10 A regulated supply | Full brightness for exhibitions |
+| Data resistor | 330–470 Ω | In series on the DIN line |
+| Decoupling cap | 470–1000 µF electrolytic | Across 5 V / GND at strip start |
+| Garment | Black t-shirt, heavy cotton | Dark fabric diffuses LEDs evenly |
 
 ---
 
