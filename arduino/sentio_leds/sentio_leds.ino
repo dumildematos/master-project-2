@@ -1,9 +1,17 @@
 // =============================================================================
 //  sentio_leds.ino
-//  ESP32 + WS2812B 8×8 LED Grid — EEG emotion patterns for Sentio
+//  ESP32 + WS2812B LED Garment — AI-driven emotion patterns for Sentio
 //
 //  Connects to the Sentio Python backend over WiFi via WebSocket and renders
-//  one of four emotion-driven LED patterns in real time.
+//  LED patterns whose colours, animation type, speed, complexity and intensity
+//  are all defined by Claude AI in real time.
+//
+//  Frame priority:
+//    1. ai_pattern  — Claude-generated definition (pattern type + 4 colours +
+//                     speed / complexity / intensity).  Used whenever present.
+//    2. color_palette + pattern_type — backend static mapper fallback.
+//    3. Emotion preset — hardcoded palettes when no colour data arrives.
+//    4. Idle breathing — while disconnected or waiting for EEG signal.
 //
 //  Required libraries  (Tools → Manage Libraries):
 //    • FastLED            by Daniel Garcia
@@ -11,7 +19,7 @@
 //    • ArduinoJson        by Benoit Blanchon  v6.x
 //
 //  Board: ESP32 Dev Module  (or any ESP32 variant)
-//  Configure your WiFi credentials and backend IP in config.h before flashing.
+//  Configure WiFi credentials and backend IP in config.h before flashing.
 // =============================================================================
 
 #include <WiFi.h>
@@ -40,31 +48,38 @@ CRGB          leds[NUM_LEDS];
 WebSocketsClient ws;
 
 // =============================================================================
-//  EEG STATE  (filled from every incoming WebSocket frame)
+//  EEG + AI STATE  (filled from every incoming WebSocket frame)
 // =============================================================================
 
 struct EegState {
-  // Frequency bands (0.0 – 1.0)
-  float alpha      = 0.0f;
-  float beta       = 0.0f;
-  float theta      = 0.0f;
-  float gamma      = 0.0f;
-  float delta      = 0.0f;
-  // Meta
-  float confidence  = 0.0f;
-  float signal_q    = 0.0f;   // 0–100
-  float complexity  = 0.2f;   // pattern_complexity  0–1
-  // Decoded
-  String  emotion   = "neutral";
-  String  pattern   = "organic";
-  uint8_t hue       = 96;     // FastLED hue (0–255) matching emotion
-  bool    active    = false;
-  bool    hasData   = false;
-  // Colour palette (resolved from backend or generated from hue)
+  // ── EEG frequency bands (0.0 – 1.0) ──────────────────────────────────────
+  float alpha     = 0.0f;
+  float beta      = 0.0f;
+  float theta     = 0.0f;
+  float gamma     = 0.0f;
+  float delta     = 0.0f;
+  // ── Meta ──────────────────────────────────────────────────────────────────
+  float confidence = 0.0f;
+  float signal_q   = 0.0f;   // 0–100
+  float complexity = 0.2f;   // pattern_complexity 0–1 (static mapper fallback)
+  // ── Decoded state ─────────────────────────────────────────────────────────
+  String emotion  = "neutral";
+  String pattern  = "organic";
+  uint8_t hue     = 96;
+  bool    active  = false;
+  bool    hasData = false;
+  // ── Colour palette ────────────────────────────────────────────────────────
   CRGB primary   = CHSV(96,  220, 255);
   CRGB secondary = CHSV(114, 180, 220);
   CRGB accent    = CHSV(132, 150, 210);
   CRGB shadow    = CRGB(6, 10, 16);
+  // ── AI-generated pattern overrides ───────────────────────────────────────
+  //    When aiActive=true these values come from Claude and take priority
+  //    over the band-power-derived animation parameters above.
+  bool  aiActive     = false;
+  float aiSpeed      = 0.5f;   // 0–1 animation playback speed
+  float aiComplexity = 0.3f;   // 0–1 visual intricacy
+  float aiIntensity  = 0.7f;   // 0–1 brightness / vividness
 } state;
 
 // =============================================================================
@@ -88,18 +103,15 @@ uint16_t XY(uint8_t x, uint8_t y) {
 //  COLOUR HELPERS
 // =============================================================================
 
-// Scale a colour by 0–255 (video-corrected — black stays black)
 inline CRGB scaleC(CRGB c, uint8_t amount) {
   c.nscale8_video(amount);
   return c;
 }
 
-// Blend two colours: amount 0.0 → a,  1.0 → b
 inline CRGB blendF(CRGB a, CRGB b, float amount) {
   return blend(a, b, (uint8_t)constrain(amount * 255.0f, 0.0f, 255.0f));
 }
 
-// Parse a "#RRGGBB" hex string into a CRGB value
 CRGB hexToRgb(const char* hex) {
   if (!hex || *hex == '\0') return CRGB::Black;
   const char* s = (*hex == '#') ? hex + 1 : hex;
@@ -111,16 +123,16 @@ CRGB hexToRgb(const char* hex) {
 }
 
 // =============================================================================
-//  EMOTION → PALETTE  (kept in sync with backend pattern palettes)
+//  EMOTION → PALETTE  (static fallback when no AI palette / color_palette)
 // =============================================================================
 
 uint8_t emotionHue(const String& e) {
-  if (e == "calm")     return 149;   // calm blue-gray
-  if (e == "relaxed")  return 123;   // soft green
-  if (e == "focused")  return 153;   // electric blue
-  if (e == "excited")  return 232;   // magenta-pink
-  if (e == "stressed") return 0;     // intense red
-  return 96;                           // neutral green fallback
+  if (e == "calm")     return 149;
+  if (e == "relaxed")  return 123;
+  if (e == "focused")  return 153;
+  if (e == "excited")  return 232;
+  if (e == "stressed") return 0;
+  return 96;
 }
 
 void paletteFromEmotion(const String& emotion) {
@@ -131,7 +143,6 @@ void paletteFromEmotion(const String& emotion) {
     state.shadow    = hexToRgb("#2E4057");
     return;
   }
-
   if (emotion == "focused") {
     state.primary   = hexToRgb("#3A86FF");
     state.secondary = hexToRgb("#4361EE");
@@ -139,7 +150,6 @@ void paletteFromEmotion(const String& emotion) {
     state.shadow    = hexToRgb("#1D3557");
     return;
   }
-
   if (emotion == "relaxed") {
     state.primary   = hexToRgb("#A8DADC");
     state.secondary = hexToRgb("#F1FAEE");
@@ -147,7 +157,6 @@ void paletteFromEmotion(const String& emotion) {
     state.shadow    = hexToRgb("#52B788");
     return;
   }
-
   if (emotion == "excited") {
     state.primary   = hexToRgb("#FF006E");
     state.secondary = hexToRgb("#FB5607");
@@ -155,7 +164,6 @@ void paletteFromEmotion(const String& emotion) {
     state.shadow    = hexToRgb("#FF7F51");
     return;
   }
-
   if (emotion == "stressed") {
     state.primary   = hexToRgb("#6A040F");
     state.secondary = hexToRgb("#9D0208");
@@ -163,44 +171,56 @@ void paletteFromEmotion(const String& emotion) {
     state.shadow    = hexToRgb("#370617");
     return;
   }
-
+  // neutral / unknown
   state.primary   = CHSV(96,  220, 255);
   state.secondary = CHSV(114, 180, 220);
   state.accent    = CHSV(132, 150, 210);
   state.shadow    = scaleC(CHSV(224, 120, 80), 60);
 }
 
-// Apply the backend colour palette array if present, else fall back to hue
-void applyPalette(JsonArrayConst palette) {
+// Apply backend color_palette array (static mapper fallback)
+void applyStaticPalette(JsonArrayConst palette) {
   if (palette.isNull() || palette.size() == 0) {
     paletteFromEmotion(state.emotion);
     return;
   }
-  CRGB p = hexToRgb(palette[0] | "");
-  CRGB s = palette.size() > 1 ? hexToRgb(palette[1] | "") : CRGB::Black;
-  CRGB a = palette.size() > 2 ? hexToRgb(palette[2] | "") : CRGB::Black;
-  paletteFromEmotion(state.emotion);
-  if (p != CRGB::Black) state.primary = p;
+  CRGB p  = hexToRgb(palette[0] | "");
+  CRGB s  = palette.size() > 1 ? hexToRgb(palette[1] | "") : CRGB::Black;
+  CRGB a  = palette.size() > 2 ? hexToRgb(palette[2] | "") : CRGB::Black;
+  paletteFromEmotion(state.emotion);   // fill shadow from emotion preset first
+  if (p != CRGB::Black) state.primary   = p;
   if (s != CRGB::Black) state.secondary = s;
-  if (a != CRGB::Black) state.accent = a;
+  if (a != CRGB::Black) state.accent    = a;
   state.shadow = blendF(state.shadow, scaleC(state.primary, 30), 0.5f);
 }
 
-// Resolve pattern type from "pattern_type" or nested "config.pattern_type"
-String resolvePattern(JsonVariantConst root) {
+// Apply AI-generated palette (all four colours including shadow)
+void applyAiPalette(JsonObjectConst aiP) {
+  CRGB p  = hexToRgb(aiP["primary"]   | "");
+  CRGB s  = hexToRgb(aiP["secondary"] | "");
+  CRGB a  = hexToRgb(aiP["accent"]    | "");
+  CRGB sh = hexToRgb(aiP["shadow"]    | "");
+  // Only override if Claude returned a valid hex
+  if (p  != CRGB::Black) state.primary   = p;
+  if (s  != CRGB::Black) state.secondary = s;
+  if (a  != CRGB::Black) state.accent    = a;
+  if (sh != CRGB::Black) state.shadow    = sh;
+}
+
+// Resolve pattern type from static mapper fields (fallback path)
+String resolveStaticPattern(JsonVariantConst root) {
   const char* d = root["pattern_type"] | nullptr;
   if (d && strlen(d)) return String(d);
   const char* n = root["config"]["pattern_type"] | nullptr;
   if (n && strlen(n)) return String(n);
-  // Fallback: infer from emotion
   if (state.emotion == "focused")  return "geometric";
-  if (state.emotion == "stressed" || state.emotion == "excited") return "textile";
+  if (state.emotion == "stressed" || state.emotion == "excited") return "pulse";
   if (state.emotion == "calm"     || state.emotion == "relaxed") return "fluid";
-  return "organic";
+  return "stars";
 }
 
 // =============================================================================
-//  BRIGHTNESS  (combines signal quality, confidence, and band energy)
+//  BRIGHTNESS
 // =============================================================================
 
 float overallIntensity() {
@@ -212,6 +232,11 @@ float overallIntensity() {
 }
 
 uint8_t frameBrightness() {
+  // When AI pattern is active use its intensity directly
+  if (state.aiActive) {
+    float v = constrain(0.20f + state.aiIntensity * 0.80f, 0.20f, 1.0f);
+    return (uint8_t)(MAX_BRIGHTNESS * v);
+  }
   float intensity = overallIntensity();
   float bias = 0.0f;
   if (state.emotion == "calm"    || state.emotion == "relaxed") bias = -0.08f;
@@ -220,25 +245,61 @@ uint8_t frameBrightness() {
   return (uint8_t)(MAX_BRIGHTNESS * constrain(intensity + bias, 0.18f, 1.0f));
 }
 
-// Tint every pixel slightly toward the emotion colour and scale by intensity
 void applyEmotionGrade() {
-  float tintAmount = 0.15f + overallIntensity() * 0.30f;
-  CRGB tint = blendF(state.secondary, state.primary, 0.6f);
-  uint8_t scale = (uint8_t)(80 + overallIntensity() * 175);
+  float tintAmount = state.aiActive
+      ? (0.10f + state.aiIntensity * 0.25f)
+      : (0.15f + overallIntensity() * 0.30f);
+  CRGB  tint  = blendF(state.secondary, state.primary, 0.6f);
+  uint8_t scl = state.aiActive
+      ? (uint8_t)(60 + state.aiIntensity * 180)
+      : (uint8_t)(80 + overallIntensity() * 175);
   for (uint16_t i = 0; i < NUM_LEDS; i++) {
     leds[i] = blendF(leds[i], tint, tintAmount);
-    leds[i] = scaleC(leds[i], scale);
+    leds[i] = scaleC(leds[i], scl);
   }
 }
 
 // =============================================================================
+//  ANIMATION PARAMETER HELPERS
+//  Each function returns the effective value for speed / complexity,
+//  choosing the AI override when active, or deriving from EEG bands.
+// =============================================================================
+
+// Effective speed:  AI 0–1 maps to [0.3, 4.8]; bands give [0.5, 5.0]
+inline float effSpeed() {
+  return state.aiActive
+      ? (0.30f + state.aiSpeed * 4.50f)
+      : (0.50f + state.beta  * 2.50f + state.complexity * 2.00f);
+}
+
+// Effective ring count for geometric pattern
+inline float effRings() {
+  return state.aiActive
+      ? (3.0f + state.aiComplexity * 9.0f)
+      : (3.0f + state.alpha * 3.0f + state.complexity * 6.0f);
+}
+
+// Effective plasma scale for fluid waves
+inline float effScale() {
+  return state.aiActive
+      ? (1.0f + state.aiComplexity * 2.5f)
+      : (1.0f + state.alpha * 1.2f + state.complexity * 1.5f);
+}
+
+// Effective pulse speed (higher base rate for pulse pattern)
+inline float effPulseSpeed() {
+  return state.aiActive
+      ? (1.0f + state.aiSpeed * 5.0f)
+      : (1.0f + state.beta  * 3.5f + state.complexity * 2.0f);
+}
+
+// =============================================================================
 //  PATTERN 1 — FLUID WAVES  (calm / relaxed)
-//  Plasma sine-wave overlay.  Speed ∝ beta, scale ∝ alpha + complexity.
 // =============================================================================
 
 void patternFluidWaves() {
-  float speed = 0.5f  + state.beta * 2.5f + state.complexity * 2.0f;
-  float scale = 1.0f  + state.alpha * 1.2f + state.complexity * 1.5f;
+  float speed = effSpeed();
+  float scale = effScale();
   uint32_t t  = millis();
 
   for (uint8_t y = 0; y < MATRIX_H; y++) {
@@ -246,7 +307,7 @@ void patternFluidWaves() {
       float nx = (float)x / (MATRIX_W - 1);
       float ny = (float)y / (MATRIX_H - 1);
 
-      float w1 = sinf(nx * scale * 6.28f + t * 0.001f * speed);
+      float w1 = sinf(nx * scale * 6.28f + t * 0.001f  * speed);
       float w2 = sinf(ny * scale * 6.28f + t * 0.0008f * speed);
       float w3 = sinf((nx + ny) * scale * 4.5f + t * 0.0006f * speed);
       float v  = ((w1 + w2 + w3) / 3.0f + 1.0f) * 0.5f;
@@ -260,14 +321,13 @@ void patternFluidWaves() {
 
 // =============================================================================
 //  PATTERN 2 — GEOMETRIC RINGS  (focused)
-//  Rotating concentric circles.  Speed ∝ beta, ring density ∝ complexity.
 // =============================================================================
 
 void patternGeometric() {
   float cx    = (MATRIX_W - 1) * 0.5f;
   float cy    = (MATRIX_H - 1) * 0.5f;
-  float t     = millis() * 0.001f * (0.5f + state.beta * 2.0f + state.complexity * 1.5f);
-  float rings = 3.0f + state.alpha * 3.0f + state.complexity * 6.0f;
+  float t     = millis() * 0.001f * effSpeed();
+  float rings = effRings();
 
   for (uint8_t y = 0; y < MATRIX_H; y++) {
     for (uint8_t x = 0; x < MATRIX_W; x++) {
@@ -288,13 +348,12 @@ void patternGeometric() {
 
 // =============================================================================
 //  PATTERN 3 — RHYTHMIC PULSE  (stressed / excited)
-//  Expanding rings + cross arms.  Pulse rate ∝ beta.
 // =============================================================================
 
 void patternRhythmicPulse() {
   float cx    = (MATRIX_W - 1) * 0.5f;
   float cy    = (MATRIX_H - 1) * 0.5f;
-  float speed = 1.0f + state.beta * 3.5f + state.complexity * 2.0f;
+  float speed = effPulseSpeed();
   uint32_t t  = millis();
 
   for (uint8_t y = 0; y < MATRIX_H; y++) {
@@ -303,16 +362,14 @@ void patternRhythmicPulse() {
       float dy   = fabsf(y - cy);
       float dist = sqrtf(dx * dx + dy * dy);
 
-      // Cross arms (Gaussian falloff)
       float armX = expf(-dy * dy * 0.5f);
       float armY = expf(-dx * dx * 0.5f);
       float cross = fmaxf(armX, armY);
 
-      // Expanding ring
       float ring = (sinf(dist * 2.0f - t * 0.003f * speed) + 1.0f) * 0.5f;
+      float v    = cross * 0.55f + ring * 0.45f;
 
-      float v = cross * 0.55f + ring * 0.45f;
-      CRGB c  = blendF(state.primary, state.accent, ring);
+      CRGB c = blendF(state.primary, state.accent, ring);
       c += scaleC(state.secondary, (uint8_t)(cross * 80));
       leds[XY(x, y)] = scaleC(c, (uint8_t)(v * 230));
     }
@@ -320,12 +377,11 @@ void patternRhythmicPulse() {
 }
 
 // =============================================================================
-//  PATTERN 4 — STAR FIELD  (neutral / organic)
-//  Twinkling stars with soft glow halo.  Density ∝ alpha.
+//  PATTERN 4 — STAR FIELD  (neutral / creative)
 // =============================================================================
 
 struct Star { uint8_t x, y, phase, speed; };
-static const uint8_t  NUM_STARS = 32;
+static const uint8_t NUM_STARS = 32;
 Star stars[NUM_STARS];
 
 void initStars() {
@@ -339,31 +395,38 @@ void initStars() {
 void patternStarField() {
   fadeToBlackBy(leds, NUM_LEDS, 40);
 
-  uint32_t t       = millis() >> 4;
-  uint8_t  visible = 8 + (uint8_t)(state.alpha * 22.0f);   // 8–30 stars
+  uint32_t t = millis() >> 4;
+  // Star density: AI complexity drives it; fallback uses alpha band
+  uint8_t visible = state.aiActive
+      ? (uint8_t)(8 + state.aiComplexity * 22.0f)
+      : (uint8_t)(8 + state.alpha * 22.0f);
+  visible = min(visible, NUM_STARS);
 
-  for (uint8_t i = 0; i < min(visible, NUM_STARS); i++) {
-    uint8_t bri  = sin8(t * stars[i].speed + stars[i].phase);
-    float   mix  = (float)(i % 8) / 7.0f;
-    CRGB    c    = scaleC(blendF(state.primary, state.accent, mix), bri);
+  // Twinkle speed: AI speed drives the tick divider; fallback is fixed
+  uint8_t tick = state.aiActive
+      ? (uint8_t)(t * (uint8_t)(1 + state.aiSpeed * 3.0f))
+      : (uint8_t)t;
+
+  for (uint8_t i = 0; i < visible; i++) {
+    uint8_t bri = sin8(tick * stars[i].speed + stars[i].phase);
+    float   mix = (float)(i % 8) / 7.0f;
+    CRGB    c   = scaleC(blendF(state.primary, state.accent, mix), bri);
 
     leds[XY(stars[i].x, stars[i].y)] |= c;
 
-    // Soft cross-shaped glow halo at peak brightness
     if (bri > 160) {
       CRGB glow = scaleC(state.secondary, bri >> 2);
       uint8_t sx = stars[i].x, sy = stars[i].y;
-      if (sx > 0)            leds[XY(sx-1, sy  )] |= glow;
+      if (sx > 0)             leds[XY(sx-1, sy  )] |= glow;
       if (sx < MATRIX_W - 1) leds[XY(sx+1, sy  )] |= glow;
-      if (sy > 0)            leds[XY(sx,   sy-1)] |= glow;
+      if (sy > 0)             leds[XY(sx,   sy-1)] |= glow;
       if (sy < MATRIX_H - 1) leds[XY(sx,   sy+1)] |= glow;
     }
   }
 }
 
 // =============================================================================
-//  PATTERN 0 — IDLE  (no backend / waiting for signal)
-//  Slow breathing pulse in neutral blue.
+//  PATTERN 0 — IDLE  (disconnected / waiting for EEG signal)
 // =============================================================================
 
 void patternIdle() {
@@ -377,90 +440,116 @@ void patternIdle() {
 
 void renderFrame() {
   if (!state.hasData || !state.active || state.signal_q < SIGNAL_THRESHOLD) {
-    // No live EEG — show idle breathing pattern at fixed brightness
     FastLED.setBrightness(MAX_BRIGHTNESS / 2);
     patternIdle();
     FastLED.show();
     return;
   }
 
-  // Route to the correct pattern
+  // Route to the correct pattern (pattern name set from AI or static mapper)
   if      (state.pattern == "fluid")      patternFluidWaves();
   else if (state.pattern == "geometric")  patternGeometric();
-  else if (state.pattern == "textile")    patternRhythmicPulse();  // textile → pulse for 8×8
-  else if (state.pattern == "organic")    patternStarField();
+  else if (state.pattern == "pulse"   ||
+           state.pattern == "textile")    patternRhythmicPulse();
+  else if (state.pattern == "stars"   ||
+           state.pattern == "organic")    patternStarField();
   else {
-    // Emotion-based fallback when pattern string is unrecognised
-    if      (state.emotion == "calm"     || state.emotion == "relaxed")  patternFluidWaves();
-    else if (state.emotion == "focused")                                  patternGeometric();
-    else if (state.emotion == "stressed" || state.emotion == "excited")  patternRhythmicPulse();
-    else                                                                   patternStarField();
+    // Unknown pattern — emotion-based fallback
+    if      (state.emotion == "calm"     || state.emotion == "relaxed") patternFluidWaves();
+    else if (state.emotion == "focused")                                 patternGeometric();
+    else if (state.emotion == "stressed" || state.emotion == "excited") patternRhythmicPulse();
+    else                                                                  patternStarField();
   }
 
-  // Apply emotion-colour tint + overall intensity scale
   applyEmotionGrade();
   FastLED.setBrightness(frameBrightness());
   FastLED.show();
 }
 
 // =============================================================================
-//  WEBSOCKET EVENT  (JSON parsing lives here)
+//  WEBSOCKET EVENT
 // =============================================================================
 
 void onWsEvent(WStype_t type, uint8_t* payload, size_t length) {
   switch (type) {
 
-    // ── Connected ──────────────────────────────────────────────────────────
     case WStype_CONNECTED:
       Serial.printf("[WS]  Connected → ws://%s:%d%s\n", WS_HOST, WS_PORT, WS_PATH);
       break;
 
-    // ── Disconnected ───────────────────────────────────────────────────────
     case WStype_DISCONNECTED:
       Serial.println("[WS]  Disconnected — waiting to reconnect…");
-      state.hasData = false;
-      state.active  = false;
+      state.hasData   = false;
+      state.active    = false;
+      state.aiActive  = false;
       break;
 
-    // ── Incoming text frame ────────────────────────────────────────────────
     case WStype_TEXT: {
-      // Use a 1 kB stack document — sufficient for the Sentio frame format
-      StaticJsonDocument<1024> doc;
+      // 2 kB document — enough for EEG frame + ai_pattern object
+      StaticJsonDocument<2048> doc;
       DeserializationError err = deserializeJson(doc, payload, length);
       if (err) {
         Serial.printf("[WS]  JSON error: %s\n", err.c_str());
         return;
       }
 
-      // Skip keepalive heartbeat frames (no EEG data)
-      const char* frameType = doc["type"] | "";
+      // Skip keepalive / waiting frames
+      const char* frameType = doc["type"]   | "";
       const char* status    = doc["status"] | "";
       if (strcmp(frameType, "heartbeat") == 0 || strcmp(status, "waiting") == 0) return;
 
-      // ── Read EEG bands ─────────────────────────────────────────────────
-      state.alpha      = doc["alpha"]             | 0.0f;
-      state.beta       = doc["beta"]              | 0.0f;
-      state.theta      = doc["theta"]             | 0.0f;
-      state.gamma      = doc["gamma"]             | 0.0f;
-      state.delta      = doc["delta"]             | 0.0f;
-      state.confidence = doc["confidence"]        | 0.0f;
-      state.signal_q   = doc["signal_quality"]    | 0.0f;
+      // ── EEG bands ─────────────────────────────────────────────────────────
+      state.alpha      = doc["alpha"]              | 0.0f;
+      state.beta       = doc["beta"]               | 0.0f;
+      state.theta      = doc["theta"]              | 0.0f;
+      state.gamma      = doc["gamma"]              | 0.0f;
+      state.delta      = doc["delta"]              | 0.0f;
+      state.confidence = doc["confidence"]         | 0.0f;
+      state.signal_q   = doc["signal_quality"]     | 0.0f;
       state.complexity = doc["pattern_complexity"] | 0.2f;
       state.active     = (int)(doc["active"] | 1) != 0;
+      state.emotion    = doc["emotion"] | "neutral";
+      state.hue        = emotionHue(state.emotion);
+      state.hasData    = true;
 
-      // ── Emotion, hue, palette, pattern ────────────────────────────────
-      String emo    = doc["emotion"] | "neutral";
-      state.emotion = emo;
-      state.hue     = emotionHue(emo);
-      state.pattern = resolvePattern(doc.as<JsonVariantConst>());
-      applyPalette(doc["color_palette"].as<JsonArrayConst>());
-      state.hasData = true;
+      // ── AI pattern (primary path) ─────────────────────────────────────────
+      JsonObjectConst aiP = doc["ai_pattern"].as<JsonObjectConst>();
+      if (!aiP.isNull() && aiP.containsKey("pattern_type")) {
+        // Apply AI-generated colours
+        applyAiPalette(aiP);
 
-      // ── Serial debug ──────────────────────────────────────────────────
-      Serial.printf("[EEG] %-9s  pattern=%-9s  α=%.2f β=%.2f θ=%.2f γ=%.2f  Q=%.0f  conf=%.2f\n",
-                    emo.c_str(), state.pattern.c_str(),
-                    state.alpha, state.beta, state.theta, state.gamma,
-                    state.signal_q, state.confidence);
+        // Apply AI animation parameters
+        state.aiSpeed      = constrain(aiP["speed"]      | 0.5f, 0.0f, 1.0f);
+        state.aiComplexity = constrain(aiP["complexity"] | 0.3f, 0.0f, 1.0f);
+        state.aiIntensity  = constrain(aiP["intensity"]  | 0.7f, 0.0f, 1.0f);
+        state.aiActive     = true;
+
+        // Pattern type comes from Claude
+        const char* apt = aiP["pattern_type"] | nullptr;
+        state.pattern = (apt && strlen(apt)) ? String(apt) : "fluid";
+
+        Serial.printf(
+          "[AI]  pattern=%-9s  speed=%.2f  complexity=%.2f  intensity=%.2f  "
+          "primary=%s\n",
+          state.pattern.c_str(),
+          state.aiSpeed, state.aiComplexity, state.aiIntensity,
+          (aiP["primary"] | "#??????")
+        );
+
+      } else {
+        // ── Static mapper fallback ─────────────────────────────────────────
+        state.aiActive = false;
+        state.pattern  = resolveStaticPattern(doc.as<JsonVariantConst>());
+        applyStaticPalette(doc["color_palette"].as<JsonArrayConst>());
+
+        Serial.printf(
+          "[EEG] %-9s  pattern=%-9s  α=%.2f β=%.2f θ=%.2f γ=%.2f  Q=%.0f  "
+          "conf=%.2f  [static]\n",
+          state.emotion.c_str(), state.pattern.c_str(),
+          state.alpha, state.beta, state.theta, state.gamma,
+          state.signal_q, state.confidence
+        );
+      }
       break;
     }
 
@@ -469,14 +558,13 @@ void onWsEvent(WStype_t type, uint8_t* payload, size_t length) {
 }
 
 // =============================================================================
-//  WIFI CONNECT  (supports both WPA/WPA2-Personal and WPA2-Enterprise)
+//  WIFI CONNECT
 // =============================================================================
 
 void connectWifi() {
   WiFi.mode(WIFI_STA);
 
 #if WIFI_AUTH_MODE == 1
-  // WPA2-Enterprise (university / corporate networks)
   Serial.printf("[WiFi] Connecting to %s (WPA2-Enterprise)\n", WIFI_SSID);
   WiFi.begin(WIFI_SSID);
   #if defined(HAS_EAP_CLIENT)
@@ -491,15 +579,13 @@ void connectWifi() {
     esp_wpa2_config_t config = WPA2_CONFIG_INIT_DEFAULT();
     esp_wifi_sta_wpa2_ent_enable(&config);
   #else
-    #error "WPA2-Enterprise selected but no suitable API found. Update your ESP32 board package."
+    #error "WPA2-Enterprise selected but no suitable API found."
   #endif
 #else
-  // Standard WPA/WPA2-Personal
   Serial.printf("[WiFi] Connecting to %s\n", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 #endif
 
-  // Pulse LEDs blue while connecting
   uint32_t tick = 0;
   while (WiFi.status() != WL_CONNECTED) {
     delay(300);
@@ -520,12 +606,11 @@ void setup() {
   Serial.begin(115200);
   delay(200);
   Serial.println();
-  Serial.println("╔═══════════════════════════════╗");
-  Serial.println("║  Sentio LED Grid  8×8          ║");
-  Serial.println("╚═══════════════════════════════╝");
-  Serial.printf("Compile-time grid : %u × %u  (%u LEDs)\n", MATRIX_W, MATRIX_H, NUM_LEDS);
+  Serial.println("╔══════════════════════════════════════╗");
+  Serial.println("║  Sentio LED Garment  · AI Patterns   ║");
+  Serial.println("╚══════════════════════════════════════╝");
+  Serial.printf("Grid: %u × %u = %u LEDs\n", MATRIX_W, MATRIX_H, NUM_LEDS);
 
-  // ── FastLED init ─────────────────────────────────────────────────────────
   FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS)
          .setCorrection(TypicalLEDStrip);
   FastLED.setBrightness(MAX_BRIGHTNESS);
@@ -533,23 +618,21 @@ void setup() {
   FastLED.show();
 
   initStars();
-  paletteFromEmotion("neutral");   // start with neutral palette
+  paletteFromEmotion("neutral");
 
-  // ── WiFi ─────────────────────────────────────────────────────────────────
   connectWifi();
 
-  // ── Flash green briefly on successful WiFi connection ────────────────────
   fill_solid(leds, NUM_LEDS, scaleC(CRGB::Green, 60));
   FastLED.show();
   delay(400);
   fill_solid(leds, NUM_LEDS, CRGB::Black);
   FastLED.show();
 
-  // ── WebSocket ────────────────────────────────────────────────────────────
   ws.begin(WS_HOST, WS_PORT, WS_PATH);
   ws.onEvent(onWsEvent);
   ws.setReconnectInterval(WS_RECONNECT_MS);
   Serial.printf("[WS]  Connecting to ws://%s:%d%s\n", WS_HOST, WS_PORT, WS_PATH);
+  Serial.println("[WS]  Waiting for first AI pattern frame…");
 }
 
 // =============================================================================
@@ -560,8 +643,7 @@ static uint32_t lastFrameMs = 0;
 static const uint32_t FRAME_MS = 1000 / TARGET_FPS;
 
 void loop() {
-  ws.loop();   // pump WebSocket (must be called every loop iteration)
-
+  ws.loop();
   uint32_t now = millis();
   if (now - lastFrameMs >= FRAME_MS) {
     lastFrameMs = now;

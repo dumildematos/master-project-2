@@ -11,6 +11,7 @@ from models.schemas import EmotionResult, EmotionType, PatternType
 from patterns.pattern_mapper import PatternMapper
 from services.session_manager import SessionState, session_manager
 from services.guidance_service import get_guidance
+from services.pattern_service import get_ai_pattern
 
 logger = logging.getLogger("sentio.stream")
 
@@ -238,6 +239,18 @@ def _build_stream_message(
                 float(emotion_result.restfulness)
                 if emotion_result.restfulness is not None else None
             ),
+        ),
+        # AI-generated LED pattern definition (None until first Claude response,
+        # then cached per emotion/confidence bucket).  When present the Arduino
+        # uses these values instead of its own static palette/parameter logic.
+        "ai_pattern": get_ai_pattern(
+            emotion=emotion_result.emotion.value,
+            confidence=float(emotion_result.confidence),
+            alpha=float(features["alpha"]),
+            beta=float(features["beta"]),
+            theta=float(features["theta"]),
+            gamma=float(features["gamma"]),
+            delta=float(features["delta"]),
         ),
     }
 

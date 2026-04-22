@@ -61,11 +61,12 @@ class Settings(BaseSettings):
     # WebSocket
     ws_endpoint: str = "/ws/brain-stream"
 
-    # Claude AI guidance
-    # Set ANTHROPIC_API_KEY in backend/.env — falls back to static strings when absent
+    # Claude AI guidance + AI-generated LED patterns
+    # Set ANTHROPIC_API_KEY in backend/.env — falls back gracefully when absent
     anthropic_api_key: str | None = None
     guidance_model: str = "claude-haiku-4-5"
-    guidance_cache_ttl: float = 20.0   # seconds before re-fetching for the same state
+    guidance_cache_ttl: float = 20.0   # seconds before re-fetching guidance for same state
+    pattern_cache_ttl: float  = 30.0   # seconds before re-fetching AI pattern for same state
 
 
 # Single global settings instance
