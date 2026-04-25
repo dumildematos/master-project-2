@@ -3,6 +3,7 @@
     "name": "Sentio",
     "slug": "sentio-mobile",
     "version": "1.0.0",
+    "owner": "dumildematos",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -13,18 +14,42 @@
       "backgroundColor": "#080c10"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Sentio uses Bluetooth to connect to your Muse 2 EEG headset.",
+        "NSBluetoothPeripheralUsageDescription": "Sentio uses Bluetooth to connect to your Muse 2 EEG headset."
+      }
     },
     "android": {
+      "package": "com.dumildematos.sentio",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": ["central"],
+          "bluetoothAlwaysPermission": "Allow $(DISPLAY_NAME) to connect to your Muse 2 EEG headset"
+        }
+      ]
+    ]
   }
 }

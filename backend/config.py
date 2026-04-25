@@ -23,7 +23,7 @@ class Settings(BaseSettings):
         default_factory=lambda: [
             "http://localhost",
             "http://127.0.0.1",
-            "http://10.208.193.106",
+            "http://10.208.194.6",
         ]
     )
     # Allows: localhost / 127.0.0.1 (any port), LAN IP, and any *.vercel.app deploy

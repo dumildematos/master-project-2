@@ -26,6 +26,7 @@ class DeviceSource(str, Enum):
     auto = "auto"
     brainflow = "brainflow"
     bluemuse = "bluemuse"
+    mobile = "mobile"   # mobile phone acts as BLE bridge; backend skips its own BLE
 
 
 # -----------------------------

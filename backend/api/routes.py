@@ -13,6 +13,7 @@ from models.schemas import (
     SessionStartResponse,
     SessionStatus,
     CalibrationStatus,
+    DeviceSource,
     EmotionType,
     PatternParameters,
     PatternType
@@ -70,11 +71,22 @@ def _brainflow_http_status(error: BrainFlowError) -> int:
 )
 def start_session(config: SessionConfig):
     """
-    Start a new EEG session and check device connection.
+    Start a new EEG session.
+
+    When device_source is "mobile" the server skips Bluetooth entirely —
+    the phone itself connects to the Muse 2 headset and pushes band powers
+    via POST /api/eeg/mobile-bands.  All other sources use the normal
+    BrainFlow / BlueMuse BLE path.
     """
     session_config = config.model_dump(mode="json")
 
-    # Try to connect to Muse device
+    if config.device_source == DeviceSource.mobile:
+        # Mobile phone is the BLE bridge — no server-side BLE connection needed.
+        session_id = session_manager.start_session(session_config)
+        session_manager.set_state(SessionState.RUNNING)   # ready to receive data
+        return {"session_id": session_id, "status": "started"}
+
+    # ── Server-side BLE (BrainFlow / BlueMuse) ─────────────────────────────
     try:
         muse_connection = _build_muse_connection(session_config)
         muse_connection.connect()
@@ -240,6 +252,46 @@ def send_manual_override(payload: ManualOverridePayload):
     }
     sm.set_latest_stream_message(message)
     return {"status": "ok", "emotion": payload.emotion}
+
+
+# -----------------------------
+# MOBILE BLE BANDS ENDPOINT
+# -----------------------------
+
+class MobileBandsPayload(BaseModel):
+    """
+    EEG band powers computed on the mobile phone from raw Muse 2 BLE data.
+    Values are already normalized (each band 0–1, they should roughly sum to 1).
+    """
+    alpha:          float = Field(..., ge=0.0, le=1.0)
+    beta:           float = Field(..., ge=0.0, le=1.0)
+    theta:          float = Field(..., ge=0.0, le=1.0)
+    gamma:          float = Field(..., ge=0.0, le=1.0)
+    delta:          float = Field(..., ge=0.0, le=1.0)
+    signal_quality: float = Field(default=75.0, ge=0.0, le=100.0)
+
+
+@router.post("/eeg/mobile-bands", status_code=200)
+def receive_mobile_bands(payload: MobileBandsPayload):
+    """
+    Receive pre-computed EEG band powers from the mobile Muse 2 BLE bridge.
+    Runs the full server-side pipeline (emotion classification, AI guidance,
+    AI pattern) and broadcasts the result via the existing WebSocket stream.
+    """
+    if not session_manager.is_active():
+        raise HTTPException(status_code=400, detail="No active session — call /session/start first")
+
+    features = {
+        "alpha":          payload.alpha,
+        "beta":           payload.beta,
+        "theta":          payload.theta,
+        "gamma":          payload.gamma,
+        "delta":          payload.delta,
+        "signal_quality": payload.signal_quality,
+    }
+    from services.stream_service import process_bands_from_mobile
+    process_bands_from_mobile(features)
+    return {"status": "ok"}
 
 
 # -----------------------------

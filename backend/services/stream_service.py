@@ -456,6 +456,68 @@ def _run_stream_loop():
         )
 
 
+def process_bands_from_mobile(features: dict) -> None:
+    """
+    Process EEG band powers received from the mobile phone (Muse 2 via phone BLE).
+
+    Runs the same pipeline as the normal stream loop — emotion classification,
+    stabilisation, pattern mapping, AI guidance, AI pattern — and broadcasts
+    the result via the WebSocket stream without touching the BrainFlow /
+    BlueMuse connection (there is none for mobile-source sessions).
+    """
+    selected_pattern = _get_selected_pattern()
+
+    emotion_result = _stabilize_emotion(emotion_model.predict(features))
+    session_manager.add_emotion(
+        emotion_result.emotion.value,
+        confidence=float(emotion_result.confidence),
+        detected_emotion=(
+            emotion_result.detected_emotion.value
+            if emotion_result.detected_emotion is not None
+            else emotion_result.emotion.value
+        ),
+    )
+
+    pattern_params = pattern_mapper.map_pattern(
+        emotion=emotion_result.emotion,
+        eeg_features=features,
+        selected_pattern=selected_pattern,
+        signal_sensitivity=float(
+            session_manager.session_config.get("signal_sensitivity", 0.5) or 0.5
+        ),
+    )
+
+    # Minimal stream config — no BLE connection to query for hw info
+    stream_config = {
+        "session_id":        session_manager.current_session_id,
+        "state":             session_manager.session_state,
+        "device_source":     "mobile",
+        "board_id":          38,   # Muse 2
+        "age":               session_manager.session_config.get("age"),
+        "gender":            session_manager.session_config.get("gender"),
+        "sampling_rate":     256,
+        "channel_count":     4,
+        "window_size":       settings.muse_window_size,
+        "update_interval":   settings.eeg_update_interval,
+        "pattern_type":      selected_pattern.value,
+        "signal_sensitivity": session_manager.session_config.get("signal_sensitivity"),
+        "emotion_smoothing": session_manager.session_config.get("emotion_smoothing"),
+        "noise_control":     session_manager.session_config.get("noise_control"),
+        "heart_signal_source": None,
+    }
+
+    message = _build_stream_message(
+        features, emotion_result, pattern_params, selected_pattern, stream_config, None
+    )
+    session_manager.set_latest_stream_message(message)
+    logger.debug(
+        "Mobile bands processed session_id=%s emotion=%s confidence=%.3f",
+        session_manager.current_session_id,
+        message["emotion"],
+        message["confidence"],
+    )
+
+
 def start_streaming() -> bool:
     started = session_manager.start_stream_thread(_run_stream_loop)
     logger.info(
