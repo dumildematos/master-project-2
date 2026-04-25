@@ -220,12 +220,19 @@ export function useMuseBLE() {
         subscriptions.current.push(sub);
       });
 
-      // Start EEG streaming
-      await device.writeCharacteristicWithResponseForService(
-        MUSE_SERVICE_UUID,
-        MUSE_CONTROL_UUID,
-        CMD_START_EEG_B64,
-      );
+      // Start EEG streaming.
+      // Muse 2 control characteristic is Write-Without-Response (WRITE_NO_RESPONSE).
+      // Use writeCharacteristicWithoutResponseForService; fall back gracefully if
+      // the write still fails (some firmware versions auto-stream on connect).
+      try {
+        await device.writeCharacteristicWithoutResponseForService(
+          MUSE_SERVICE_UUID,
+          MUSE_CONTROL_UUID,
+          CMD_START_EEG_B64,
+        );
+      } catch {
+        // Non-fatal — EEG notifications may arrive even without an explicit start
+      }
 
       // Handle unexpected disconnects
       const discSub = device.onDisconnected(() => {
@@ -275,7 +282,7 @@ export function useMuseBLE() {
     cleanup();
     try {
       if (deviceRef.current) {
-        await deviceRef.current.writeCharacteristicWithResponseForService(
+        await deviceRef.current.writeCharacteristicWithoutResponseForService(
           MUSE_SERVICE_UUID,
           MUSE_CONTROL_UUID,
           CMD_STOP_EEG_B64,
