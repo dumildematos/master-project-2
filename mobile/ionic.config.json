@@ -1,0 +1,7 @@
+{
+  "name": "Sentio",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react-vite"
+}

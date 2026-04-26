@@ -1,274 +1,283 @@
 /**
- * ConfigScreen
- * ------------
- * Initial full-screen page — mirrors web frontend's ConfigurationScreen.
- *
- * User picks:
- *   - Pattern type (organic · geometric · fluid · textile)
- *   - Signal Sensitivity (slider 0–100)
- *   - State Smoothing (slider 0–100)
- *
- * Bottom-right floating gear button opens a modal to set:
- *   - Backend API URL
- *   - Muse 2 MAC address
- *
- * "Start Session" calls POST /api/session/start and invokes onStart().
+ * ConfigScreen  (Ionic)
+ * ---------------------
+ * Session configuration: pattern type, sensitivity, smoothing.
+ * Gear icon opens settings modal for backend API URL.
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Modal, TextInput, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert,
-} from "react-native";
+  IonPage, IonContent, IonModal, IonSpinner,
+} from "@ionic/react";
 import { getStoredApiUrl, saveApiUrl } from "../lib/runtimeConfig";
 import { startSession } from "../lib/sentioApi";
 import { useMuseBLEContext } from "../lib/MuseBLEContext";
-import { colors, spacing, radius, font } from "../theme";
+import { colors, spacing, radius } from "../theme";
 
 // ---------------------------------------------------------------------------
-// Pattern type options (same as web frontend)
+// Pattern options
 // ---------------------------------------------------------------------------
 const PATTERNS = [
-  { id: "organic",    label: "Organic",    desc: "Flowing natural forms" },
-  { id: "geometric",  label: "Geometric",  desc: "Structured symmetry"   },
-  { id: "fluid",      label: "Fluid",      desc: "Liquid motion patterns" },
-  { id: "textile",    label: "Textile",    desc: "Woven fabric inspired"  },
+  { id: "organic",   label: "Organic",   desc: "Flowing natural forms"   },
+  { id: "geometric", label: "Geometric", desc: "Structured symmetry"     },
+  { id: "fluid",     label: "Fluid",     desc: "Liquid motion patterns"  },
+  { id: "textile",   label: "Textile",   desc: "Woven fabric inspired"   },
 ] as const;
-
 type PatternId = typeof PATTERNS[number]["id"];
 
-// ---------------------------------------------------------------------------
-// Pattern preview (SVG-inspired, done with React Native Views)
-// ---------------------------------------------------------------------------
-function PatternPreview({ type, active }: { type: PatternId; active: boolean }) {
-  const col = active ? colors.cyan : colors.muted;
-  const bg  = active ? colors.cyan + "18" : colors.bg;
-  return (
-    <View style={[preview.box, { backgroundColor: bg, borderColor: active ? colors.cyan + "66" : colors.border }]}>
-      {type === "organic" && (
-        <>
-          <View style={[preview.circle, { width: 36, height: 36, borderColor: col, left: 8, top: 6, opacity: 0.6 }]} />
-          <View style={[preview.circle, { width: 24, height: 24, borderColor: col, left: 24, top: 12, opacity: 0.4 }]} />
-        </>
-      )}
-      {type === "geometric" && (
-        <>
-          <View style={[preview.square, { borderColor: col, opacity: 0.6, transform: [{ rotate: "15deg" }] }]} />
-          <View style={[preview.square, { borderColor: col, opacity: 0.35, width: 18, height: 18, transform: [{ rotate: "38deg" }] }]} />
-        </>
-      )}
-      {type === "fluid" && (
-        <View style={[preview.line, { borderColor: col, opacity: 0.65 }]} />
-      )}
-      {type === "textile" && (
-        <View style={preview.grid}>
-          {[0,1,2].map(i => (
-            <View key={i} style={[preview.gridLine, { borderColor: col, opacity: 0.35, marginRight: 8 }]} />
-          ))}
-        </View>
-      )}
-    </View>
-  );
+export interface MobileSessionConfig {
+  patternType: PatternId;
+  sensitivity: number;
+  smoothing:   number;
 }
-
-const preview = StyleSheet.create({
-  box:    { width: "100%", height: 52, borderWidth: 1, borderRadius: radius.sm, overflow: "hidden", alignItems: "center", justifyContent: "center", marginBottom: spacing.xs },
-  circle: { position: "absolute", borderWidth: 1, borderRadius: 100 },
-  square: { width: 24, height: 24, borderWidth: 1 },
-  line:   { width: "60%", height: 0, borderBottomWidth: 1.5, borderStyle: "solid", transform: [{ translateY: -6 }] },
-  grid:   { flexDirection: "row", alignItems: "center" },
-  gridLine: { width: 1, height: 28, borderLeftWidth: 1 },
-});
+interface Props { onStart: (c: MobileSessionConfig) => void }
 
 // ---------------------------------------------------------------------------
-// Slider (native Slider from @react-native-community/slider is optional —
-// we build a simple touch-based bar slider to avoid extra dependencies)
+// Styles
 // ---------------------------------------------------------------------------
-function SimpleSlider({ value, onChange, label, leftLabel, rightLabel }: {
-  value: number;
-  onChange: (v: number) => void;
-  label: string;
-  leftLabel?: string;
-  rightLabel?: string;
-}) {
-  return (
-    <View style={slider.wrap}>
-      <View style={slider.header}>
-        <Text style={slider.label}>{label}</Text>
-        <Text style={slider.pct}>{value}%</Text>
-      </View>
-      <View style={slider.track}
-        onStartShouldSetResponder={() => true}
-        onResponderGrant={(e) => {
-          const x = e.nativeEvent.locationX;
-          e.target.measure((_fx, _fy, width) => {
-            onChange(Math.round(Math.min(100, Math.max(0, (x / width) * 100))));
-          });
-        }}
-        onResponderMove={(e) => {
-          const x = e.nativeEvent.locationX;
-          e.target.measure((_fx, _fy, width) => {
-            onChange(Math.round(Math.min(100, Math.max(0, (x / width) * 100))));
-          });
-        }}
-      >
-        <View style={[slider.fill, { width: `${value}%` }]} />
-        <View style={[slider.thumb, { left: `${value}%` as any }]} />
-      </View>
-      {(leftLabel || rightLabel) && (
-        <View style={slider.labels}>
-          <Text style={slider.sideLabel}>{leftLabel}</Text>
-          <Text style={slider.sideLabel}>{rightLabel}</Text>
-        </View>
-      )}
-    </View>
-  );
-}
+const s = {
+  content: { background: colors.bg, minHeight: "100vh" },
+  scroll:  { padding: `${spacing.xl}px ${spacing.md}px 80px`, maxWidth: 560, margin: "0 auto" },
 
-const slider = StyleSheet.create({
-  wrap:      { marginBottom: spacing.md },
-  header:    { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
-  label:     { fontFamily: font.mono, fontSize: 11, color: colors.muted },
-  pct:       { fontFamily: font.mono, fontSize: 11, color: colors.cyan },
-  track: {
-    height:          6,
-    backgroundColor: colors.border,
-    borderRadius:    radius.full,
-    overflow:        "visible",
-    position:        "relative",
+  header:   { textAlign: "center" as const, marginBottom: spacing.xl },
+  wordmark: {
+    fontFamily: "monospace", fontSize: 28, fontWeight: 800,
+    letterSpacing: 6, color: colors.cyan, margin: 0,
   },
-  fill: {
-    position:        "absolute",
-    left:            0,
-    top:             0,
-    height:          6,
-    backgroundColor: colors.cyan,
-    borderRadius:    radius.full,
+  tagline: {
+    fontFamily: "monospace", fontSize: 11, color: colors.muted,
+    marginTop: spacing.xs, letterSpacing: 2,
   },
-  thumb: {
-    position:         "absolute",
-    top:              -5,
-    width:            16,
-    height:           16,
-    borderRadius:     8,
-    backgroundColor:  colors.cyan,
-    transform:        [{ translateX: -8 }],
+
+  card: {
+    background: colors.bg2, border: `1px solid ${colors.border}`,
+    borderRadius: radius.lg, padding: spacing.lg,
   },
-  labels:    { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
-  sideLabel: { fontFamily: font.mono, fontSize: 9, color: colors.muted },
-});
+  cardTitle: {
+    fontFamily: "monospace", fontSize: 16, fontWeight: 700,
+    color: colors.text, marginBottom: spacing.lg, marginTop: 0,
+  },
+
+  // BLE banner
+  bleBanner: (connected: boolean) => ({
+    display: "flex", alignItems: "center", gap: spacing.sm,
+    background: connected ? "#00ff8814" : colors.bg,
+    border: `1px solid ${connected ? "#4ade8044" : colors.border}`,
+    borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.md,
+  }),
+  bleDot:     { width: 8, height: 8, borderRadius: 4, background: "#4ade80", flexShrink: 0 },
+  bleName:    { fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#4ade80", flex: 1 },
+  bleSub:     { fontFamily: "monospace", fontSize: 9,  color: colors.muted, marginTop: 1 },
+  bleDiscon:  { fontFamily: "monospace", fontSize: 10, color: colors.muted, background: "none", border: "none", cursor: "pointer", padding: `0 ${spacing.sm}px` },
+  bleNone:    { fontFamily: "monospace", fontSize: 11, color: colors.muted, margin: 0 },
+
+  fieldLabel: {
+    fontFamily: "monospace", fontSize: 10, color: colors.muted,
+    letterSpacing: 2, display: "block", marginBottom: spacing.sm,
+  },
+  patternGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: spacing.sm, marginBottom: spacing.md },
+  patternBtn: (active: boolean) => ({
+    background: active ? `${colors.cyan}0d` : colors.bg,
+    border: `1px solid ${active ? `${colors.cyan}88` : colors.border}`,
+    borderRadius: radius.md, padding: spacing.sm, cursor: "pointer", textAlign: "left" as const,
+  }),
+  patternPreview: (active: boolean) => ({
+    width: "100%", height: 48, borderRadius: radius.sm,
+    background: active ? `${colors.cyan}18` : colors.bg,
+    border: `1px solid ${active ? `${colors.cyan}55` : colors.border}`,
+    marginBottom: spacing.xs, overflow: "hidden", position: "relative" as const,
+    display: "flex", alignItems: "center", justifyContent: "center",
+  }),
+  patternLabel: (active: boolean) => ({
+    fontFamily: "monospace", fontSize: 12, fontWeight: 700,
+    color: active ? colors.cyan : colors.text, margin: 0,
+  }),
+  patternDesc: { fontFamily: "monospace", fontSize: 9, color: colors.muted, marginTop: 2 },
+
+  // Slider
+  sliderWrap: { marginBottom: spacing.md },
+  sliderHead: { display: "flex", justifyContent: "space-between", marginBottom: 6 },
+  sliderLabel:{ fontFamily: "monospace", fontSize: 11, color: colors.muted },
+  sliderPct:  { fontFamily: "monospace", fontSize: 11, color: colors.cyan },
+  sliderTrack:{ height: 6, background: colors.border, borderRadius: 999, position: "relative" as const, cursor: "pointer" },
+  sliderLabels:{ display: "flex", justifyContent: "space-between", marginTop: 4 },
+  sliderSide: { fontFamily: "monospace", fontSize: 9, color: colors.muted },
+
+  errorBox: {
+    background: "#D0000018", border: `1px solid #D0000055`,
+    borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.md,
+    fontFamily: "monospace", fontSize: 12, color: "#ff6b6b",
+  },
+  startBtn: (loading: boolean) => ({
+    background: colors.cyan, borderRadius: radius.md, padding: spacing.md,
+    width: "100%", border: "none", cursor: loading ? "not-allowed" : "pointer",
+    fontFamily: "monospace", fontSize: 14, fontWeight: 700, color: colors.bg,
+    letterSpacing: 1, opacity: loading ? 0.6 : 1, marginTop: spacing.sm,
+    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+  }),
+
+  // Gear FAB
+  gear: {
+    position: "fixed" as const, bottom: spacing.xl, right: spacing.lg,
+    width: 52, height: 52, borderRadius: 26,
+    background: colors.cyan, border: "none", cursor: "pointer",
+    fontSize: 22, display: "flex", alignItems: "center", justifyContent: "center",
+    boxShadow: `0 0 20px ${colors.cyan}70`, zIndex: 100,
+  },
+
+  // Modal
+  modalOverlay: {
+    position: "fixed" as const, inset: 0,
+    background: "#00000088", zIndex: 200,
+    display: "flex", flexDirection: "column" as const, justifyContent: "flex-end",
+  },
+  modalSheet: {
+    background: colors.bg2, borderRadius: "20px 20px 0 0",
+    padding: spacing.lg, paddingBottom: 40,
+    border: `1px solid ${colors.border}`, borderBottom: "none",
+  },
+  modalHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    background: colors.border, margin: "0 auto", marginBottom: spacing.lg,
+  },
+  modalTitle: {
+    fontFamily: "monospace", fontSize: 14, fontWeight: 700,
+    color: colors.text, letterSpacing: 2, marginBottom: spacing.md, marginTop: 0,
+  },
+  modalFieldLabel: {
+    fontFamily: "monospace", fontSize: 10, color: colors.muted,
+    letterSpacing: 2, display: "block", marginBottom: 6,
+  },
+  modalInput: {
+    background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: radius.md,
+    padding: spacing.sm, color: colors.text, fontFamily: "monospace", fontSize: 14,
+    width: "100%", boxSizing: "border-box" as const, marginBottom: 4, outline: "none",
+  },
+  modalHint:  { fontFamily: "monospace", fontSize: 10, color: colors.muted, marginBottom: 4 },
+  modalSave: {
+    background: colors.cyan, borderRadius: radius.md, padding: spacing.md,
+    width: "100%", border: "none", cursor: "pointer",
+    fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: colors.bg,
+    letterSpacing: 1, marginTop: spacing.lg,
+  },
+  modalCancel: {
+    background: "none", border: "none", cursor: "pointer", width: "100%",
+    padding: spacing.sm, fontFamily: "monospace", fontSize: 12, color: colors.muted,
+    marginTop: spacing.sm,
+  },
+} as const;
 
 // ---------------------------------------------------------------------------
-// Device settings modal (API URL + MAC address)
+// Settings modal
 // ---------------------------------------------------------------------------
-function DeviceModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [url, setUrl] = useState("");
 
   useEffect(() => {
-    if (visible) {
-      getStoredApiUrl().then(setUrl);
-    }
-  }, [visible]);
+    if (open) getStoredApiUrl().then(setUrl);
+  }, [open]);
 
   async function save() {
     if (url.trim() && !/^https?:\/\//.test(url.trim())) {
-      Alert.alert("Invalid URL", "URL must start with http:// or https://");
+      alert("URL must start with http:// or https://");
       return;
     }
     if (url.trim()) await saveApiUrl(url.trim());
     onClose();
   }
 
+  if (!open) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={modal.overlay}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <TouchableOpacity style={modal.backdrop} activeOpacity={1} onPress={onClose} />
-        <View style={modal.sheet}>
-          <View style={modal.handle} />
-          <Text style={modal.title}>Backend Settings</Text>
+    <div style={s.modalOverlay} onClick={onClose}>
+      <div style={s.modalSheet} onClick={e => e.stopPropagation()}>
+        <div style={s.modalHandle} />
+        <h3 style={s.modalTitle}>Backend Settings</h3>
 
-          <Text style={modal.fieldLabel}>API URL</Text>
-          <TextInput
-            style={modal.input}
-            value={url}
-            onChangeText={setUrl}
-            placeholder="http://192.168.1.42:8000"
-            placeholderTextColor={colors.muted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-          />
-          <Text style={modal.hint}>Address of the Sentio backend server.</Text>
+        <label style={s.modalFieldLabel}>API URL</label>
+        <input
+          style={s.modalInput}
+          value={url}
+          onChange={e => setUrl(e.target.value)}
+          placeholder="http://192.168.1.42:8000"
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <p style={s.modalHint}>Address of the Sentio backend server.</p>
 
-          <TouchableOpacity style={modal.saveBtn} onPress={save} activeOpacity={0.8}>
-            <Text style={modal.saveBtnText}>Save</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={modal.cancelBtn} onPress={onClose} activeOpacity={0.7}>
-            <Text style={modal.cancelBtnText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+        <button style={s.modalSave} onClick={save}>Save</button>
+        <button style={s.modalCancel} onClick={onClose}>Cancel</button>
+      </div>
+    </div>
   );
 }
 
-const modal = StyleSheet.create({
-  overlay:    { flex: 1, justifyContent: "flex-end" },
-  backdrop:   { ...StyleSheet.absoluteFillObject, backgroundColor: "#00000088" },
-  sheet: {
-    backgroundColor: colors.bg2,
-    borderTopLeftRadius:  20,
-    borderTopRightRadius: 20,
-    padding:    spacing.lg,
-    paddingBottom: 40,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: colors.border,
-  },
-  handle: {
-    alignSelf:       "center",
-    width:           40,
-    height:          4,
-    borderRadius:    2,
-    backgroundColor: colors.border,
-    marginBottom:    spacing.lg,
-  },
-  title:      { fontFamily: font.mono, fontSize: 14, fontWeight: "700", color: colors.text, marginBottom: spacing.md, letterSpacing: 2 },
-  fieldLabel: { fontFamily: font.mono, fontSize: 10, color: colors.muted, letterSpacing: 2, marginBottom: 6 },
-  input: {
-    backgroundColor: colors.bg,
-    borderWidth:     1,
-    borderColor:     colors.border,
-    borderRadius:    radius.md,
-    padding:         spacing.sm,
-    color:           colors.text,
-    fontFamily:      font.mono,
-    fontSize:        14,
-    marginBottom:    4,
-  },
-  hint:       { fontFamily: font.mono, fontSize: 10, color: colors.muted, marginBottom: 4 },
-  saveBtn:    { backgroundColor: colors.cyan, borderRadius: radius.md, padding: spacing.md, alignItems: "center", marginTop: spacing.lg },
-  saveBtnText:{ fontFamily: font.mono, fontSize: 13, fontWeight: "700", color: colors.bg, letterSpacing: 1 },
-  cancelBtn:  { alignItems: "center", marginTop: spacing.sm, padding: spacing.sm },
-  cancelBtnText: { fontFamily: font.mono, fontSize: 12, color: colors.muted },
-});
+// ---------------------------------------------------------------------------
+// Simple range slider
+// ---------------------------------------------------------------------------
+function Slider({ label, value, onChange, leftLabel, rightLabel }: {
+  label: string; value: number; onChange: (v: number) => void;
+  leftLabel?: string; rightLabel?: string;
+}) {
+  return (
+    <div style={s.sliderWrap}>
+      <div style={s.sliderHead}>
+        <span style={s.sliderLabel}>{label}</span>
+        <span style={s.sliderPct}>{value}%</span>
+      </div>
+      <input
+        type="range" min={0} max={100} value={value}
+        onChange={e => onChange(Number(e.target.value))}
+        style={{
+          width: "100%", accentColor: colors.cyan,
+          cursor: "pointer", height: 6,
+        }}
+      />
+      {(leftLabel || rightLabel) && (
+        <div style={s.sliderLabels}>
+          <span style={s.sliderSide}>{leftLabel}</span>
+          <span style={s.sliderSide}>{rightLabel}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pattern preview (pure CSS shapes)
+// ---------------------------------------------------------------------------
+function PatternPreview({ type, active }: { type: PatternId; active: boolean }) {
+  const col = active ? colors.cyan : colors.muted;
+  return (
+    <div style={s.patternPreview(active)}>
+      {type === "organic" && (
+        <>
+          <div style={{ position: "absolute", left: 8, top: 6, width: 36, height: 36, borderRadius: 18, border: `1px solid ${col}`, opacity: 0.6 }} />
+          <div style={{ position: "absolute", left: 24, top: 12, width: 24, height: 24, borderRadius: 12, border: `1px solid ${col}`, opacity: 0.4 }} />
+        </>
+      )}
+      {type === "geometric" && (
+        <>
+          <div style={{ width: 24, height: 24, border: `1px solid ${col}`, opacity: 0.6, transform: "rotate(15deg)" }} />
+          <div style={{ position: "absolute", width: 18, height: 18, border: `1px solid ${col}`, opacity: 0.35, transform: "rotate(38deg)" }} />
+        </>
+      )}
+      {type === "fluid" && (
+        <div style={{ width: "60%", borderBottom: `1.5px solid ${col}`, opacity: 0.65 }} />
+      )}
+      {type === "textile" && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{ width: 1, height: 28, borderLeft: `1px solid ${col}`, opacity: 0.35 }} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Config Screen
 // ---------------------------------------------------------------------------
-export interface MobileSessionConfig {
-  patternType: PatternId;
-  sensitivity: number;   // 0–100
-  smoothing:   number;   // 0–100
-}
-
-interface Props {
-  onStart: (config: MobileSessionConfig) => void;
-}
-
 export default function ConfigScreen({ onStart }: Props) {
   const [patternType, setPatternType] = useState<PatternId>("organic");
   const [sensitivity, setSensitivity] = useState(50);
@@ -289,7 +298,6 @@ export default function ConfigScreen({ onStart }: Props) {
         signal_sensitivity: sensitivity / 100,
         emotion_smoothing:  smoothing   / 100,
         noise_control:      1,
-        // If the phone is connected to the Muse 2 the backend skips its own BLE
         device_source:      isBleConnected ? "mobile" : undefined,
       });
       onStart({ patternType, sensitivity, smoothing });
@@ -301,219 +309,81 @@ export default function ConfigScreen({ onStart }: Props) {
   }
 
   return (
-    <View style={styles.root}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <IonPage>
+      <IonContent style={{ "--background": colors.bg }}>
+        <div style={s.scroll}>
+          {/* Header */}
+          <div style={s.header}>
+            <h1 style={s.wordmark}>SENTIO</h1>
+            <p style={s.tagline}>emotion-driven fabric patterns</p>
+          </div>
 
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <Text style={styles.wordmark}>SENTIO</Text>
-          <Text style={styles.tagline}>emotion-driven fabric patterns</Text>
-        </View>
+          <div style={s.card}>
+            <h2 style={s.cardTitle}>Configure Session</h2>
 
-        {/* ── Card ── */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Configure Session</Text>
+            {/* Headset status */}
+            {isBleConnected && connectedDevice ? (
+              <div style={s.bleBanner(true)}>
+                <div style={s.bleDot} />
+                <div style={{ flex: 1 }}>
+                  <p style={s.bleName}>{connectedDevice.name}</p>
+                  <p style={s.bleSub}>Mobile Bluetooth · connected</p>
+                </div>
+                <button style={s.bleDiscon} onClick={disconnect}>Disconnect</button>
+              </div>
+            ) : (
+              <div style={s.bleBanner(false)}>
+                <p style={s.bleNone}>⚡ No headset — backend will use its own Bluetooth</p>
+              </div>
+            )}
 
-          {/* ── Headset status banner ── */}
-          {isBleConnected && connectedDevice ? (
-            <View style={styles.bleConnected}>
-              <View style={styles.bleDot} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.bleDeviceName}>{connectedDevice.name}</Text>
-                <Text style={styles.bleDeviceId}>Mobile Bluetooth · connected</Text>
-              </View>
-              <TouchableOpacity onPress={disconnect} style={styles.bleDisconnectBtn}>
-                <Text style={styles.bleDisconnectText}>Disconnect</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.bleNotConnected}>
-              <Text style={styles.bleNotConnectedText}>
-                ⚡ No headset — backend will use its own Bluetooth
-              </Text>
-            </View>
-          )}
-
-          {/* Pattern Type */}
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Pattern Type</Text>
-            <View style={styles.patternGrid}>
-              {PATTERNS.map((p) => (
-                <TouchableOpacity
+            {/* Pattern type */}
+            <label style={s.fieldLabel}>PATTERN TYPE</label>
+            <div style={s.patternGrid}>
+              {PATTERNS.map(p => (
+                <button
                   key={p.id}
-                  style={[
-                    styles.patternBtn,
-                    patternType === p.id && styles.patternBtnActive,
-                  ]}
-                  onPress={() => setPatternType(p.id)}
-                  activeOpacity={0.7}
+                  style={s.patternBtn(patternType === p.id)}
+                  onClick={() => setPatternType(p.id)}
                 >
                   <PatternPreview type={p.id} active={patternType === p.id} />
-                  <Text style={[styles.patternLabel, patternType === p.id && { color: colors.cyan }]}>
-                    {p.label}
-                  </Text>
-                  <Text style={styles.patternDesc}>{p.desc}</Text>
-                </TouchableOpacity>
+                  <p style={s.patternLabel(patternType === p.id)}>{p.label}</p>
+                  <p style={s.patternDesc}>{p.desc}</p>
+                </button>
               ))}
-            </View>
-          </View>
+            </div>
 
-          {/* Signal Sensitivity */}
-          <SimpleSlider
-            label="Signal Sensitivity"
-            value={sensitivity}
-            onChange={setSensitivity}
-            leftLabel="Low noise"
-            rightLabel="High detail"
-          />
+            {/* Sliders */}
+            <Slider
+              label="Signal Sensitivity" value={sensitivity} onChange={setSensitivity}
+              leftLabel="Low noise" rightLabel="High detail"
+            />
+            <Slider
+              label="State Smoothing" value={smoothing} onChange={setSmoothing}
+              leftLabel="Reactive" rightLabel="Stable"
+            />
 
-          {/* State Smoothing */}
-          <SimpleSlider
-            label="State Smoothing"
-            value={smoothing}
-            onChange={setSmoothing}
-            leftLabel="Reactive"
-            rightLabel="Stable"
-          />
+            {/* Error */}
+            {!!error && <div style={s.errorBox}>{error}</div>}
 
-          {/* Error */}
-          {!!error && (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
+            {/* Start button */}
+            <button
+              style={s.startBtn(loading)}
+              onClick={handleStart}
+              disabled={loading}
+            >
+              {loading
+                ? <><IonSpinner name="dots" style={{ width: 16, height: 16 }} /> Starting…</>
+                : "Start Session →"}
+            </button>
+          </div>
+        </div>
 
-          {/* Start */}
-          <TouchableOpacity
-            style={[styles.startBtn, loading && styles.startBtnDisabled]}
-            onPress={handleStart}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading
-              ? <ActivityIndicator color={colors.bg} />
-              : <Text style={styles.startBtnText}>Start Session →</Text>
-            }
-          </TouchableOpacity>
-        </View>
+        {/* Gear FAB */}
+        <button style={s.gear} onClick={() => setModalOpen(true)}>⚙️</button>
 
-      </ScrollView>
-
-      {/* ── Floating gear button (bottom-right) ── */}
-      <TouchableOpacity
-        style={styles.gearBtn}
-        onPress={() => setModalOpen(true)}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.gearIcon}>⚙️</Text>
-      </TouchableOpacity>
-
-      <DeviceModal visible={modalOpen} onClose={() => setModalOpen(false)} />
-    </View>
+        <SettingsModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      </IonContent>
+    </IonPage>
   );
 }
-
-const styles = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.md, paddingBottom: 80, paddingTop: spacing.xl },
-
-  header:   { alignItems: "center", marginBottom: spacing.xl },
-  wordmark: { fontFamily: font.mono, fontSize: 28, fontWeight: "800", letterSpacing: 6, color: colors.cyan },
-  tagline:  { fontFamily: font.mono, fontSize: 11, color: colors.muted, marginTop: spacing.xs, letterSpacing: 2 },
-
-  card: {
-    backgroundColor: colors.bg2,
-    borderWidth:     1,
-    borderColor:     colors.border,
-    borderRadius:    radius.lg,
-    padding:         spacing.lg,
-  },
-  cardTitle: { fontSize: 16, fontWeight: "700", color: colors.text, marginBottom: spacing.lg },
-
-  field:      { marginBottom: spacing.md },
-  fieldLabel: { fontFamily: font.mono, fontSize: 10, color: colors.muted, letterSpacing: 2, marginBottom: spacing.sm },
-
-  patternGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  patternBtn: {
-    width:           "47%",
-    backgroundColor: colors.bg,
-    borderWidth:     1,
-    borderColor:     colors.border,
-    borderRadius:    radius.md,
-    padding:         spacing.sm,
-  },
-  patternBtnActive: { borderColor: colors.cyan + "88", backgroundColor: colors.cyan + "0d" },
-  patternLabel: { fontFamily: font.mono, fontSize: 12, fontWeight: "700", color: colors.text },
-  patternDesc:  { fontFamily: font.mono, fontSize: 9,  color: colors.muted, marginTop: 2 },
-
-  errorBox: {
-    backgroundColor: "#D00000" + "18",
-    borderWidth:     1,
-    borderColor:     "#D00000" + "55",
-    borderRadius:    radius.md,
-    padding:         spacing.sm,
-    marginBottom:    spacing.md,
-  },
-  errorText: { fontFamily: font.mono, fontSize: 12, color: "#ff6b6b" },
-
-  startBtn: {
-    backgroundColor: colors.cyan,
-    borderRadius:    radius.md,
-    padding:         spacing.md,
-    alignItems:      "center",
-    marginTop:       spacing.sm,
-  },
-  startBtnDisabled: { opacity: 0.6 },
-  startBtnText: { fontFamily: font.mono, fontSize: 14, fontWeight: "700", color: colors.bg, letterSpacing: 1 },
-
-  gearBtn: {
-    position:        "absolute",
-    bottom:          spacing.xl,
-    right:           spacing.lg,
-    width:           52,
-    height:          52,
-    borderRadius:    26,
-    backgroundColor: colors.cyan,
-    alignItems:      "center",
-    justifyContent:  "center",
-    shadowColor:     colors.cyan,
-    shadowOffset:    { width: 0, height: 0 },
-    shadowOpacity:   0.45,
-    shadowRadius:    10,
-    elevation:       8,
-  },
-  gearIcon: { fontSize: 22 },
-
-  // ── Headset status banner ───────────────────────────────────────────────
-  bleConnected: {
-    flexDirection:   "row",
-    alignItems:      "center",
-    backgroundColor: "#00ff8814",
-    borderWidth:     1,
-    borderColor:     "#4ade8044",
-    borderRadius:    radius.md,
-    padding:         spacing.sm,
-    gap:             spacing.sm,
-    marginBottom:    spacing.md,
-  },
-  bleDot: {
-    width: 8, height: 8, borderRadius: 4,
-    backgroundColor: "#4ade80",
-    flexShrink: 0,
-  },
-  bleDeviceName:    { fontFamily: font.mono, fontSize: 12, fontWeight: "700", color: "#4ade80" },
-  bleDeviceId:      { fontFamily: font.mono, fontSize: 9, color: colors.muted, marginTop: 1 },
-  bleDisconnectBtn: { paddingHorizontal: spacing.sm },
-  bleDisconnectText:{ fontFamily: font.mono, fontSize: 10, color: colors.muted },
-
-  bleNotConnected: {
-    backgroundColor: colors.bg,
-    borderWidth:     1,
-    borderColor:     colors.border,
-    borderRadius:    radius.md,
-    padding:         spacing.sm,
-    marginBottom:    spacing.md,
-    alignItems:      "center",
-  },
-  bleNotConnectedText: { fontFamily: font.mono, fontSize: 11, color: colors.muted },
-});
