@@ -1,108 +1,75 @@
 /**
- * EmotionRing
- * -----------
+ * EmotionRing  (Ionic / CSS animation)
+ * ----------------------------------------
  * Animated colour ring that pulses with the current emotion confidence.
- * Uses React Native's Animated API — no extra dependencies needed.
+ * Uses CSS keyframes instead of React Native's Animated API.
  */
 import React, { useEffect, useRef } from "react";
-import { Animated, View, Text, StyleSheet } from "react-native";
-import { emotionColor, emotionLabel, colors, font } from "../theme";
+import { emotionColor, emotionLabel, colors } from "../theme";
 
 interface Props {
   emotion:    string;
-  confidence: number;
+  confidence: number;  // 0–1
   size?:      number;
 }
 
-export default function EmotionRing({ emotion, confidence, size = 200 }: Props) {
-  const pulse = useRef(new Animated.Value(1)).current;
-  const glow  = useRef(new Animated.Value(0.3)).current;
-  const emoColor = emotionColor[emotion] ?? colors.muted;
-
-  useEffect(() => {
-    const speed = 800 + (1 - confidence) * 1200; // faster when confident
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(pulse, { toValue: 1.06, duration: speed, useNativeDriver: true }),
-          Animated.timing(glow,  { toValue: 0.9,  duration: speed, useNativeDriver: true }),
-        ]),
-        Animated.parallel([
-          Animated.timing(pulse, { toValue: 1.0,  duration: speed, useNativeDriver: true }),
-          Animated.timing(glow,  { toValue: 0.3,  duration: speed, useNativeDriver: true }),
-        ]),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [emotion, confidence]);
-
+export default function EmotionRing({ emotion, confidence, size = 220 }: Props) {
+  const emoColor  = emotionColor[emotion.toLowerCase()] ?? colors.muted;
   const ringSize  = size;
-  const innerSize = size * 0.72;
+  const innerSize = Math.round(size * 0.72);
+
+  // Speed: faster when confident
+  const speed = (0.8 + (1 - confidence) * 1.2).toFixed(2);
+
+  const animName = `sentio-pulse-${(emoColor.replace("#", ""))}`;
 
   return (
-    <View style={[styles.wrapper, { width: ringSize, height: ringSize }]}>
-      {/* Outer glow ring */}
-      <Animated.View
-        style={[
-          styles.ring,
-          {
-            width:        ringSize,
-            height:       ringSize,
-            borderRadius: ringSize / 2,
-            borderColor:  emoColor,
-            opacity:      glow,
-            transform:    [{ scale: pulse }],
-          },
-        ]}
-      />
-      {/* Inner filled circle */}
-      <View
-        style={[
-          styles.inner,
-          {
-            width:            innerSize,
-            height:           innerSize,
-            borderRadius:     innerSize / 2,
-            backgroundColor:  emoColor + "1a",
-            borderColor:      emoColor + "55",
-          },
-        ]}
-      >
-        <Text style={[styles.emotionText, { color: emoColor }]}>
-          {emotionLabel[emotion] ?? emotion.toUpperCase()}
-        </Text>
-        <Text style={[styles.pctText, { color: emoColor + "bb" }]}>
-          {Math.round(confidence * 100)}%
-        </Text>
-      </View>
-    </View>
+    <>
+      {/* Inject keyframes for this colour */}
+      <style>{`
+        @keyframes ${animName} {
+          0%   { transform: scale(1.0); opacity: 0.3; }
+          50%  { transform: scale(1.06); opacity: 0.9; }
+          100% { transform: scale(1.0); opacity: 0.3; }
+        }
+      `}</style>
+
+      <div style={{
+        width: ringSize, height: ringSize,
+        position: "relative",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        {/* Outer pulsing ring */}
+        <div style={{
+          position: "absolute",
+          width: ringSize, height: ringSize,
+          borderRadius: "50%",
+          border: `2px solid ${emoColor}`,
+          animation: `${animName} ${speed}s ease-in-out infinite`,
+        }} />
+
+        {/* Inner filled circle */}
+        <div style={{
+          width: innerSize, height: innerSize,
+          borderRadius: "50%",
+          background: `${emoColor}1a`,
+          border: `1px solid ${emoColor}55`,
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+        }}>
+          <span style={{
+            fontFamily: "monospace", fontSize: 22, fontWeight: 800,
+            letterSpacing: 1, color: emoColor,
+          }}>
+            {emotionLabel[emotion.toLowerCase()] ?? emotion.toUpperCase()}
+          </span>
+          <span style={{
+            fontFamily: "monospace", fontSize: 14, color: `${emoColor}bb`, marginTop: 4,
+          }}>
+            {Math.round(confidence * 100)}%
+          </span>
+        </div>
+      </div>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: {
-    alignItems:     "center",
-    justifyContent: "center",
-  },
-  ring: {
-    position:  "absolute",
-    borderWidth: 2,
-  },
-  inner: {
-    alignItems:     "center",
-    justifyContent: "center",
-    borderWidth:    1,
-  },
-  emotionText: {
-    fontSize:      22,
-    fontWeight:    "800",
-    letterSpacing: 1,
-    fontFamily:    font.mono,
-  },
-  pctText: {
-    fontSize:   14,
-    fontFamily: font.mono,
-    marginTop:  4,
-  },
-});

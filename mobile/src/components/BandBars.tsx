@@ -1,6 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
-import { colors, spacing, radius, font } from "../theme";
+import { colors, spacing } from "../theme";
 
 const BANDS = [
   { key: "alpha", label: "α  Alpha", color: colors.cyan,    desc: "calm / relaxed" },
@@ -17,44 +16,39 @@ interface Props {
 
 export default function BandBars({ bands, showDesc = false }: Props) {
   return (
-    <View style={styles.container}>
+    <div style={{ display: "flex", flexDirection: "column", gap: spacing.sm }}>
       {BANDS.map(({ key, label, color, desc }) => {
         const value = bands[key] ?? 0;
+        const pct   = Math.min(100, Math.round(value * 100));
         return (
-          <View key={key} style={styles.row}>
-            <View style={styles.labelBlock}>
-              <Text style={styles.label}>{label}</Text>
-              {showDesc && <Text style={styles.desc}>{desc}</Text>}
-            </View>
-            <View style={styles.track}>
-              <View
-                style={[
-                  styles.fill,
-                  { width: `${Math.min(100, Math.round(value * 100))}%`, backgroundColor: color },
-                ]}
-              />
-            </View>
-            <Text style={styles.pct}>{(value * 100).toFixed(0)}%</Text>
-          </View>
+          <div key={key} style={{ display: "flex", alignItems: "center", gap: spacing.sm }}>
+            <div style={{ width: 90 }}>
+              <span style={{ fontFamily: "monospace", fontSize: 12, color: colors.text }}>{label}</span>
+              {showDesc && (
+                <p style={{ fontFamily: "monospace", fontSize: 9, color: colors.muted, marginTop: 1, margin: 0 }}>
+                  {desc}
+                </p>
+              )}
+            </div>
+            <div style={{
+              flex: 1, height: 7, background: colors.border,
+              borderRadius: 999, overflow: "hidden",
+            }}>
+              <div style={{
+                width: `${pct}%`, height: "100%",
+                background: color, borderRadius: 999,
+                transition: "width .3s ease",
+              }} />
+            </div>
+            <span style={{
+              fontFamily: "monospace", fontSize: 12, color: colors.muted,
+              width: 36, textAlign: "right",
+            }}>
+              {pct}%
+            </span>
+          </div>
         );
       })}
-    </View>
+    </div>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { gap: spacing.sm },
-  row:       { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  labelBlock:{ width: 90 },
-  label:     { fontFamily: font.mono, fontSize: 12, color: colors.text },
-  desc:      { fontFamily: font.mono, fontSize: 9,  color: colors.muted, marginTop: 1 },
-  track: {
-    flex:         1,
-    height:       7,
-    backgroundColor: colors.border,
-    borderRadius: radius.full,
-    overflow:     "hidden",
-  },
-  fill:  { height: "100%", borderRadius: radius.full },
-  pct:   { fontFamily: font.mono, fontSize: 12, color: colors.muted, width: 36, textAlign: "right" },
-});

@@ -1,0 +1,53 @@
+/* ── Sentio dark theme — Ionic CSS custom properties ── */
+:root {
+  --ion-background-color:       #080c10;
+  --ion-background-color-rgb:   8,12,16;
+
+  --ion-text-color:             #e8f0fe;
+  --ion-text-color-rgb:         232,240,254;
+
+  /* Primary = Sentio cyan */
+  --ion-color-primary:          #29d9c8;
+  --ion-color-primary-rgb:      41,217,200;
+  --ion-color-primary-contrast: #080c10;
+  --ion-color-primary-contrast-rgb: 8,12,16;
+  --ion-color-primary-shade:    #24bfb0;
+  --ion-color-primary-tint:     #3eddce;
+
+  /* Cards / items */
+  --ion-item-background:        #0f1419;
+  --ion-card-background:        #0f1419;
+  --ion-border-color:           #1a2233;
+
+  /* Tab bar */
+  --ion-tab-bar-background:     #0f1419;
+  --ion-tab-bar-border-color:   #1a2233;
+  --ion-tab-bar-color:          #6b7fa3;
+  --ion-tab-bar-color-selected: #29d9c8;
+
+  /* Toolbar */
+  --ion-toolbar-background:     #080c10;
+  --ion-toolbar-color:          #e8f0fe;
+  --ion-toolbar-border-color:   #1a2233;
+
+  /* Modal */
+  --ion-modal-background:       #0f1419;
+
+  /* Input */
+  --ion-input-background:       #080c10;
+  --ion-input-placeholder-color:#6b7fa3;
+}
+
+/* Global resets for Ionic pages */
+ion-content {
+  --background: #080c10;
+}
+
+ion-header ion-toolbar {
+  --border-color: #1a2233;
+}
+
+/* Monospace font throughout */
+* {
+  font-family: "Courier New", "Courier", monospace;
+}
