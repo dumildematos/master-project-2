@@ -118,9 +118,9 @@ class _MonitoringShell extends StatelessWidget {
             label: 'MONITOR',
           ),
           BottomNavigationBarItem(
-            icon:       Icon(Icons.tune_outlined),
-            activeIcon: Icon(Icons.tune),
-            label: 'PATTERNS',
+            icon:       Icon(Icons.history_outlined),
+            activeIcon: Icon(Icons.history),
+            label: 'HISTORY',
           ),
         ],
       ),
