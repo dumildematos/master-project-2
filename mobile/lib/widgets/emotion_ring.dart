@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../theme/theme.dart';
 
@@ -10,7 +11,7 @@ class EmotionRing extends StatefulWidget {
     super.key,
     required this.emotion,
     required this.confidence,
-    this.size = 220,
+    this.size = 240,
   });
 
   @override
@@ -20,36 +21,32 @@ class EmotionRing extends StatefulWidget {
 class _EmotionRingState extends State<EmotionRing>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
-  late Animation<double> _scale;
-  late Animation<double> _opacity;
+  late Animation<double> _progress;
 
   @override
   void initState() {
     super.initState();
-    _buildAnimation();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _progress = Tween<double>(begin: 0, end: widget.confidence)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _ctrl.forward();
   }
 
   @override
   void didUpdateWidget(EmotionRing old) {
     super.didUpdateWidget(old);
-    if (old.emotion != widget.emotion || old.confidence != widget.confidence) {
-      _ctrl.dispose();
-      _buildAnimation();
+    if (old.confidence != widget.confidence || old.emotion != widget.emotion) {
+      _progress = Tween<double>(
+        begin: _progress.value,
+        end:   widget.confidence,
+      ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+      _ctrl
+        ..reset()
+        ..forward();
     }
-  }
-
-  void _buildAnimation() {
-    final speed = 800 + ((1 - widget.confidence) * 1200).round();
-    _ctrl = AnimationController(
-      vsync: this, duration: Duration(milliseconds: speed),
-    )..repeat(reverse: true);
-
-    _scale = Tween<double>(begin: 1.0, end: 1.06).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
-    _opacity = Tween<double>(begin: 0.3, end: 0.9).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
   }
 
   @override
@@ -60,64 +57,119 @@ class _EmotionRingState extends State<EmotionRing>
 
   @override
   Widget build(BuildContext context) {
-    final col       = emotionColor(widget.emotion);
-    final ringSize  = widget.size;
-    final innerSize = ringSize * 0.72;
+    final col = emotionColor(widget.emotion);
+    final pct = (widget.confidence * 100).round();
 
     return SizedBox(
-      width: ringSize, height: ringSize,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Outer pulsing ring
-          AnimatedBuilder(
-            animation: _ctrl,
-            builder: (_, __) => Opacity(
-              opacity: _opacity.value,
-              child: Transform.scale(
-                scale: _scale.value,
-                child: Container(
-                  width: ringSize, height: ringSize,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: col, width: 2),
-                  ),
-                ),
-              ),
-            ),
+      width: widget.size, height: widget.size,
+      child: AnimatedBuilder(
+        animation: _progress,
+        builder: (_, __) => CustomPaint(
+          painter: _ArcRingPainter(
+            color:    col,
+            progress: _progress.value,
           ),
-
-          // Inner filled circle
-          Container(
-            width: innerSize, height: innerSize,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: col.withOpacity(0.10),
-              border: Border.all(color: col.withOpacity(0.33)),
-            ),
+          child: Center(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   emotionLabel(widget.emotion).toUpperCase(),
                   style: TextStyle(
-                    fontFamily: 'monospace', fontSize: 22,
-                    fontWeight: FontWeight.w800, color: col, letterSpacing: 1,
+                    fontFamily: 'monospace', fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: col, letterSpacing: 3,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  '${(widget.confidence * 100).round()}%',
-                  style: TextStyle(
-                    fontFamily: 'monospace', fontSize: 14,
-                    color: col.withOpacity(0.73),
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '$pct',
+                      style: TextStyle(
+                        fontSize: 64, fontWeight: FontWeight.w800,
+                        color: kText, height: 1.0,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text(
+                        '%',
+                        style: TextStyle(
+                          fontFamily: 'monospace', fontSize: 18,
+                          fontWeight: FontWeight.bold, color: col,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
+}
+
+class _ArcRingPainter extends CustomPainter {
+  final Color color;
+  final double progress; // 0–1
+
+  const _ArcRingPainter({required this.color, required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    const stroke = 6.0;
+    final radius = size.width / 2 - stroke - 4;
+    final rect   = Rect.fromCircle(center: center, radius: radius);
+
+    // Static inner ring
+    canvas.drawCircle(
+      center, radius * 0.84,
+      Paint()
+        ..color       = color.withOpacity(0.08)
+        ..style       = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+
+    // Background track
+    canvas.drawCircle(
+      center, radius,
+      Paint()
+        ..color       = color.withOpacity(0.12)
+        ..style       = PaintingStyle.stroke
+        ..strokeWidth = stroke,
+    );
+
+    // Progress arc (starts at top, clockwise)
+    if (progress > 0) {
+      canvas.drawArc(
+        rect, -pi / 2, progress * 2 * pi, false,
+        Paint()
+          ..color       = color
+          ..style       = PaintingStyle.stroke
+          ..strokeWidth = stroke
+          ..strokeCap   = StrokeCap.round,
+      );
+
+      // Glow effect on the arc tip
+      final tipAngle = -pi / 2 + progress * 2 * pi;
+      final tipX = center.dx + radius * cos(tipAngle);
+      final tipY = center.dy + radius * sin(tipAngle);
+      canvas.drawCircle(
+        Offset(tipX, tipY), stroke * 1.2,
+        Paint()
+          ..color      = color.withOpacity(0.45)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ArcRingPainter old) =>
+      old.progress != progress || old.color != color;
 }
