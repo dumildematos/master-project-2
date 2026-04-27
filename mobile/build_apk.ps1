@@ -1,7 +1,12 @@
-# build_apk.ps1 — builds the release APK after pausing OneDrive to prevent
-# file-locking errors on native libs inside the OneDrive-synced project folder.
+# build_apk.ps1 — builds the release APK with two protections:
+#   1. Pauses OneDrive to prevent file-locking errors on native libs
+#   2. Sets PUB_CACHE to C:\PubCache (outside AppData) so the pub cache
+#      is never corrupted by incomplete downloads or OneDrive interference
 
-$oneDrivePath = "$env:LOCALAPPDATA\Microsoft\OneDrive\OneDrive.exe"
+$env:PUB_CACHE = "C:\PubCache"
+New-Item -ItemType Directory -Force "C:\PubCache" | Out-Null
+
+$oneDrivePath  = "$env:LOCALAPPDATA\Microsoft\OneDrive\OneDrive.exe"
 $oneDriveRunning = Get-Process OneDrive -ErrorAction SilentlyContinue
 
 if ($oneDriveRunning) {
@@ -11,6 +16,7 @@ if ($oneDriveRunning) {
 }
 
 try {
+    flutter pub get
     flutter build apk $args
 } finally {
     if ($oneDriveRunning -and (Test-Path $oneDrivePath)) {

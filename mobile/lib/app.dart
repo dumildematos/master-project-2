@@ -10,6 +10,7 @@ import 'services/sentio_api.dart';
 import 'screens/muse_scan_screen.dart';
 import 'screens/config_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/patterns_screen.dart';
 import 'screens/history_screen.dart';
 import 'theme/theme.dart';
 
@@ -105,6 +106,7 @@ class _MonitoringShell extends StatelessWidget {
         index: tab,
         children: const [
           DashboardScreen(),
+          PatternsScreen(),
           HistoryScreen(),
         ],
       ),
@@ -116,6 +118,11 @@ class _MonitoringShell extends StatelessWidget {
             icon:       Icon(Icons.monitor_heart_outlined),
             activeIcon: Icon(Icons.monitor_heart),
             label: 'MONITOR',
+          ),
+          BottomNavigationBarItem(
+            icon:       Icon(Icons.texture_outlined),
+            activeIcon: Icon(Icons.texture),
+            label: 'PATTERNS',
           ),
           BottomNavigationBarItem(
             icon:       Icon(Icons.history_outlined),
