@@ -1,11 +1,13 @@
 /// BleProvider
 /// ------------
 /// ChangeNotifier that manages the full Muse 2 BLE lifecycle:
-///   scan → connect → subscribe EEG chars → decode → buffer →
+///   scan → connect → bond → subscribe EEG chars → decode → buffer →
 ///   compute band powers → POST /api/eeg/mobile-bands every 250 ms.
 ///
-/// Uses flutter_blue_plus for BLE and permission_handler for Android permissions.
+/// Auto-reconnects up to _kMaxReconnects times with exponential backoff
+/// when the connection drops unexpectedly.
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -26,8 +28,9 @@ const _kEEGUUIDs     = [
 const _kCmdStart = [0x02, 0x64, 0x0a]; // 'd' — start EEG
 const _kCmdStop  = [0x02, 0x68, 0x0a]; // 'h' — stop EEG
 
-const Duration _kScanTimeout  = Duration(seconds: 15);
-const Duration _kPostInterval = Duration(milliseconds: 250);
+const Duration _kScanTimeout   = Duration(seconds: 15);
+const Duration _kPostInterval  = Duration(milliseconds: 250);
+const int      _kMaxReconnects = 5;
 
 // ── State enum ────────────────────────────────────────────────────────────────
 enum BLEState { idle, scanning, connecting, connected, disconnected, error }
@@ -40,21 +43,29 @@ class BleProvider extends ChangeNotifier {
   BandPowers? _bandPowers;
   double _signalQuality = 0;
   String? _error;
+  int _reconnectAttempt = 0;
 
   // Internal state
   BluetoothDevice? _device;
+  MuseDevice? _lastDevice; // kept for auto-reconnect
   final List<List<double>> _buffers = [[], [], [], []];
   Timer? _postTimer;
   Timer? _scanTimer;
+  Timer? _reconnectTimer;
   final List<StreamSubscription> _subs = [];
 
   // ── Getters ────────────────────────────────────────────────────────────────
-  BLEState    get state           => _state;
-  List<MuseDevice> get devices    => List.unmodifiable(_devices);
-  MuseDevice? get connectedDevice => _connectedDevice;
-  BandPowers? get bandPowers      => _bandPowers;
-  double      get signalQuality   => _signalQuality;
-  String?     get error           => _error;
+  BLEState         get state            => _state;
+  List<MuseDevice> get devices          => List.unmodifiable(_devices);
+  MuseDevice?      get connectedDevice  => _connectedDevice;
+  BandPowers?      get bandPowers       => _bandPowers;
+  double           get signalQuality    => _signalQuality;
+  String?          get error            => _error;
+  /// > 0 while auto-reconnect is in progress (shows attempt number in UI).
+  int              get reconnectAttempt => _reconnectAttempt;
+
+  // ── Permissions ────────────────────────────────────────────────────────────
+  Future<bool> requestPermissions() => _requestPermissions();
 
   // ── Scan ───────────────────────────────────────────────────────────────────
   Future<void> scan() async {
@@ -63,7 +74,6 @@ class BleProvider extends ChangeNotifier {
     _error = null;
     _setState(BLEState.scanning);
 
-    // Request Android BLE permissions
     final granted = await _requestPermissions();
     if (!granted) {
       _error = 'Bluetooth permission denied';
@@ -103,7 +113,12 @@ class BleProvider extends ChangeNotifier {
   }
 
   // ── Connect ────────────────────────────────────────────────────────────────
-  Future<void> connect(MuseDevice museDevice) async {
+  Future<void> connect(MuseDevice museDevice, {bool isReconnect = false}) async {
+    if (!isReconnect) {
+      _reconnectAttempt = 0;
+      _lastDevice = museDevice;
+    }
+
     _cleanup();
     await FlutterBluePlus.stopScan().catchError((_) {});
     _setState(BLEState.connecting);
@@ -113,19 +128,22 @@ class BleProvider extends ChangeNotifier {
       final device = BluetoothDevice.fromId(museDevice.id);
       _device = device;
 
-      // Listen for disconnect
+      // Watch for unexpected disconnects and auto-reconnect.
       _subs.add(
-        device.connectionState.listen((state) {
-          if (state == BluetoothConnectionState.disconnected) {
-            _cleanup();
-            _connectedDevice = null;
-            _bandPowers = null;
-            _setState(BLEState.disconnected);
+        device.connectionState.listen((cs) {
+          if (cs == BluetoothConnectionState.disconnected &&
+              _state == BLEState.connected) {
+            _onDropped();
           }
         }),
       );
 
       await device.connect(timeout: const Duration(seconds: 15));
+
+      // Bond the device so the OS maintains the pairing across sessions.
+      if (Platform.isAndroid) {
+        await device.createBond().catchError((_) {});
+      }
 
       // Discover services
       final services = await device.discoverServices();
@@ -167,15 +185,40 @@ class BleProvider extends ChangeNotifier {
         await ctrl.write(_kCmdStart, withoutResponse: true);
       } catch (_) { /* non-fatal */ }
 
-      _connectedDevice = museDevice;
+      _reconnectAttempt = 0;
+      _connectedDevice  = museDevice;
       _setState(BLEState.connected);
 
-      // Periodic band-power POST
       _postTimer = Timer.periodic(_kPostInterval, (_) => _processBands());
 
     } catch (e) {
       _error = e.toString();
       _setState(BLEState.error);
+    }
+  }
+
+  /// Called when the OS reports an unexpected disconnect.
+  void _onDropped() {
+    _postTimer?.cancel(); _postTimer = null;
+    for (final s in _subs) s.cancel();
+    _subs.clear();
+    _bandPowers    = null;
+    _signalQuality = 0;
+    notifyListeners();
+
+    if (_reconnectAttempt < _kMaxReconnects && _lastDevice != null) {
+      _reconnectAttempt++;
+      _setState(BLEState.connecting);
+      // Exponential backoff: 2 s, 4 s, 6 s, 8 s, 10 s
+      final backoff = Duration(seconds: _reconnectAttempt * 2);
+      _reconnectTimer = Timer(
+        backoff,
+        () => connect(_lastDevice!, isReconnect: true),
+      );
+    } else {
+      _reconnectAttempt = 0;
+      _connectedDevice  = null;
+      _setState(BLEState.disconnected);
     }
   }
 
@@ -198,6 +241,10 @@ class BleProvider extends ChangeNotifier {
 
   // ── Disconnect ─────────────────────────────────────────────────────────────
   Future<void> disconnect() async {
+    // Prevent auto-reconnect from triggering.
+    _lastDevice       = null;
+    _reconnectAttempt = _kMaxReconnects;
+
     _cleanup();
     if (_device != null) {
       try {
@@ -215,16 +262,18 @@ class BleProvider extends ChangeNotifier {
       await _device!.disconnect().catchError((_) {});
       _device = null;
     }
-    _connectedDevice = null;
-    _bandPowers      = null;
-    _signalQuality   = 0;
+    _connectedDevice  = null;
+    _bandPowers       = null;
+    _signalQuality    = 0;
+    _reconnectAttempt = 0;
     _setState(BLEState.idle);
   }
 
   // ── Internal ───────────────────────────────────────────────────────────────
   void _cleanup() {
-    _scanTimer?.cancel(); _scanTimer = null;
-    _postTimer?.cancel(); _postTimer = null;
+    _scanTimer?.cancel();     _scanTimer     = null;
+    _postTimer?.cancel();     _postTimer     = null;
+    _reconnectTimer?.cancel(); _reconnectTimer = null;
     for (final s in _subs) s.cancel();
     _subs.clear();
   }
@@ -248,7 +297,16 @@ Future<bool> _requestPermissions() async {
     Permission.bluetoothConnect,
     Permission.location,
   ].request();
-  return statuses.values.every(
+
+  final allGranted = statuses.values.every(
     (s) => s == PermissionStatus.granted || s == PermissionStatus.limited,
   );
+
+  if (!allGranted) {
+    final anyPermanentlyDenied = statuses.values
+        .any((s) => s == PermissionStatus.permanentlyDenied);
+    if (anyPermanentlyDenied) openAppSettings();
+  }
+
+  return allGranted;
 }

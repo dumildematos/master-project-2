@@ -2,6 +2,7 @@
 ///   ble_connect  →  config  →  monitoring (tab bar)
 ///                  ↑
 ///               STOP button
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/ble_provider.dart';
@@ -111,8 +112,16 @@ class _MonitoringShell extends StatelessWidget {
         currentIndex: tab,
         onTap: onTab,
         items: const [
-          BottomNavigationBarItem(icon: Text('🧠', style: TextStyle(fontSize: 20)), label: 'LIVE'),
-          BottomNavigationBarItem(icon: Text('📈', style: TextStyle(fontSize: 20)), label: 'HISTORY'),
+          BottomNavigationBarItem(
+            icon:       Icon(Icons.monitor_heart_outlined),
+            activeIcon: Icon(Icons.monitor_heart),
+            label: 'MONITOR',
+          ),
+          BottomNavigationBarItem(
+            icon:       Icon(Icons.tune_outlined),
+            activeIcon: Icon(Icons.tune),
+            label: 'PATTERNS',
+          ),
         ],
       ),
     );
