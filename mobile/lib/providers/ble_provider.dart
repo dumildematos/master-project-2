@@ -72,6 +72,8 @@ class BleProvider extends ChangeNotifier {
   BluetoothDevice?              _connectedMuse;
   BluetoothDevice?              _connectedHat;
   BluetoothCharacteristic?      _hatCommandChar;
+  int?                          _museBattery;
+  int?                          _hatBattery;
   final Map<String, List<BluetoothService>> _deviceServices = {};
   final List<StreamSubscription> _scanSubs         = [];
   final List<StreamSubscription> _hatSubs           = [];
@@ -92,6 +94,8 @@ class BleProvider extends ChangeNotifier {
   BluetoothDevice?    get connectedHat     => _connectedHat;
   bool                get isMuseConnected  => _connectedMuse != null;
   bool                get isHatConnected   => _connectedHat  != null;
+  int?                get museBattery      => _museBattery;
+  int?                get hatBattery       => _hatBattery;
 
   bool isDeviceConnected(BluetoothDevice device) =>
       _connectedMuse?.remoteId == device.remoteId ||

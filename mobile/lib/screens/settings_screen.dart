@@ -3,26 +3,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/auth_provider.dart';
 import '../providers/ble_provider.dart';
-import '../services/auth_service.dart';
+import '../theme/theme.dart';
+import 'connect_device_screen.dart';
 import 'splash_screen.dart';
 
-// ── Design tokens ──────────────────────────────────────────────────────────────
-const _kBgTop      = Color(0xFF02080D);
-const _kBgBottom   = Color(0xFF07131B);
-const _kCardBg     = Color(0xFF101820);
-const _kCardBorder = Color(0xFF1E2A33);
-const _kCyan       = Color(0xFF00D9FF);
-const _kGreen      = Color(0xFF43F26B);
-const _kRed        = Color(0xFFFF3B3B);
-const _kTextPri    = Color(0xFFFFFFFF);
-const _kTextSec    = Color(0xFF9AA6B2);
-const _kDivider    = Color(0xFF1A2530);
-const _kToggle     = Color(0xFF18DFA3); // notifications toggle active
-const _kCardRadius = 24.0;
-
 // ══════════════════════════════════════════════════════════════════════════════
-// SettingsScreen — pushed route from ProfileScreen / Dashboard quick actions
+// SettingsScreen — rendered as a MainShell tab (shell provides bottom nav)
+// Also used as a pushed route; back button auto-shows via canPop check.
 // ══════════════════════════════════════════════════════════════════════════════
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -32,52 +21,41 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _notifications = true;
+  bool _vibration = true;
 
   Future<void> _confirmSignOut() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _kCardBg,
+        backgroundColor: SentioColors.card,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: _kCardBorder),
+          side: const BorderSide(color: SentioColors.cardBorder),
         ),
-        title: Text(
-          'Sign Out',
-          style: GoogleFonts.poppins(
-            color: _kTextPri,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        content: Text(
-          'Are you sure you want to sign out?',
-          style: GoogleFonts.poppins(color: _kTextSec),
-        ),
+        title: Text('Sign Out',
+            style: GoogleFonts.poppins(
+                color: SentioColors.textPrimary,
+                fontWeight: FontWeight.w600)),
+        content: Text('Are you sure you want to sign out?',
+            style: GoogleFonts.poppins(color: SentioColors.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(color: _kTextSec),
-            ),
+            child: Text('Cancel',
+                style: GoogleFonts.poppins(color: SentioColors.textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
-              'Sign Out',
-              style: GoogleFonts.poppins(
-                color: _kRed,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            child: Text('Sign Out',
+                style: GoogleFonts.poppins(
+                    color: SentioColors.red, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
     );
 
     if (ok == true && mounted) {
-      await clearAuth(); // clears JWT + cached user from secure storage
+      await context.read<AuthProvider>().logout();
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -90,352 +68,284 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ble            = context.watch<BleProvider>();
-    final muse2Connected = ble.state == BLEState.connected;
-    final muse2Name      = ble.connectedDevice?.name ?? 'Muse 2';
-    final hatConnected   = ble.isHatConnected;
-    final hatName        = ble.connectedHat?.platformName ?? 'SENTIO Hat';
+    final ble          = context.watch<BleProvider>();
+    final connectedCount =
+        (ble.isMuseConnected ? 1 : 0) + (ble.isHatConnected ? 1 : 0);
+    final canPop = Navigator.of(context).canPop();
 
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [_kBgTop, _kBgBottom],
-          ),
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [SentioColors.bgTop, SentioColors.bgBottom],
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _TopBar(),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 16),
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            _SettingsTopBar(showBack: canPop),
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 24),
 
-                      // ── Device card ──────────────────────────────────
-                      GlassCard(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const _CardTitle('Device'),
-                            const SizedBox(height: 16),
-                            // TODO: device list from real BLE scan results
-                            DeviceStatusRow(
-                              deviceName: muse2Name,
-                              connected:  muse2Connected,
-                              batteryPct: 90,
-                              icon:       PhosphorIcons.headphones(),
-                              iconColor:  const Color(0xFF6B7FA3),
-                            ),
-                            const _RowDivider(),
-                            DeviceStatusRow(
-                              deviceName: hatName,
-                              connected:  hatConnected,
-                              batteryPct: 80,
-                              icon:       PhosphorIcons.hardHat(),
-                              iconColor:  _kCyan,
-                            ),
-                            const SizedBox(height: 8),
-                          ],
+                    // ── DEVICE ───────────────────────────────────────────
+                    const _SectionLabel('DEVICE'),
+                    const SizedBox(height: 12),
+                    _SettingsCard(children: [
+                      _SettingsTile(
+                        icon: PhosphorIcons.bluetooth(),
+                        title: 'Connected Devices',
+                        subtitle: connectedCount == 0
+                            ? 'No devices connected'
+                            : '$connectedCount device${connectedCount > 1 ? 's' : ''} connected',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const ConnectDeviceScreen()),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                    ]),
+                    const SizedBox(height: 28),
 
-                      // ── App card ─────────────────────────────────────
-                      GlassCard(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const _CardTitle('App'),
-                            const SizedBox(height: 8),
-                            SettingsListRow(
-                              icon:  PhosphorIcons.bell(),
-                              label: 'Notifications',
-                              trailing: Switch(
-                                value:              _notifications,
-                                onChanged:          (v) => setState(() => _notifications = v),
-                                activeThumbColor:   Colors.white,
-                                activeTrackColor:   _kToggle,
-                                inactiveTrackColor: _kCardBorder,
-                                inactiveThumbColor: _kTextSec,
-                              ),
-                              onTap: () => setState(
-                                () => _notifications = !_notifications,
-                              ),
-                            ),
-                            const _RowDivider(),
-                            SettingsListRow(
-                              icon:     PhosphorIcons.downloadSimple(),
-                              label:    'Data Export',
-                              trailing: Icon(PhosphorIcons.caretRight(), color: _kTextSec, size: 18),
-                              onTap:    () {}, // TODO: export session data to file
-                            ),
-                            const _RowDivider(),
-                            SettingsListRow(
-                              icon:     PhosphorIcons.question(),
-                              label:    'Help & Support',
-                              trailing: Icon(PhosphorIcons.caretRight(), color: _kTextSec, size: 18),
-                              onTap:    () {}, // TODO: open support URL
-                            ),
-                            const _RowDivider(),
-                            SettingsListRow(
-                              icon:     PhosphorIcons.shieldCheck(),
-                              label:    'Privacy Policy',
-                              trailing: Icon(PhosphorIcons.caretRight(), color: _kTextSec, size: 18),
-                              onTap:    () {}, // TODO: open privacy policy URL
-                            ),
-                            const _RowDivider(),
-                            SettingsListRow(
-                              icon:     PhosphorIcons.article(),
-                              label:    'Terms of Use',
-                              trailing: Icon(PhosphorIcons.caretRight(), color: _kTextSec, size: 18),
-                              onTap:    () {}, // TODO: open terms of use URL
-                            ),
-                            const SizedBox(height: 4),
-                          ],
-                        ),
+                    // ── PREFERENCES ──────────────────────────────────────
+                    const _SectionLabel('PREFERENCES'),
+                    const SizedBox(height: 12),
+                    _SettingsCard(children: [
+                      _SettingsTile(
+                        icon: PhosphorIcons.chartLineUp(),
+                        title: 'Data & Insights',
+                        subtitle: 'Manage your brain data and insights',
+                        onTap: () {},
                       ),
-                      const SizedBox(height: 24),
+                      const _RowDiv(),
+                      _SettingsTile(
+                        icon: PhosphorIcons.bell(),
+                        title: 'Notifications',
+                        subtitle: 'Customize your notifications',
+                        onTap: () {},
+                      ),
+                      const _RowDiv(),
+                      _SettingsTile(
+                        icon: PhosphorIcons.moon(),
+                        title: 'Focus Mode',
+                        subtitle: 'Reduce distractions and stay focused',
+                        onTap: () {},
+                      ),
+                      const _RowDiv(),
+                      _SettingsTile(
+                        icon: PhosphorIcons.palette(),
+                        title: 'Appearance',
+                        subtitle: 'Customize app theme and display',
+                        onTap: () {},
+                      ),
+                      const _RowDiv(),
+                      _SettingsTile(
+                        icon: PhosphorIcons.globe(),
+                        title: 'Language',
+                        subtitle: null,
+                        trailing: const _ValueChevron('English'),
+                        onTap: () {},
+                      ),
+                      const _RowDiv(),
+                      _SettingsTile(
+                        icon: PhosphorIcons.ruler(),
+                        title: 'Units',
+                        subtitle: null,
+                        trailing: const _ValueChevron('Metric (kg, cm)'),
+                        onTap: () {},
+                      ),
+                      const _RowDiv(),
+                      _SettingsTile(
+                        icon: PhosphorIcons.vibrate(),
+                        title: 'Vibration',
+                        subtitle: _vibration ? 'On' : 'Off',
+                        trailing: Switch(
+                          value: _vibration,
+                          onChanged: (v) => setState(() => _vibration = v),
+                          activeTrackColor: SentioColors.cyan,
+                          activeThumbColor: Colors.white,
+                          inactiveTrackColor: SentioColors.cardBorder,
+                          inactiveThumbColor: SentioColors.textSecondary,
+                        ),
+                        onTap: () => setState(() => _vibration = !_vibration),
+                      ),
+                    ]),
+                    const SizedBox(height: 28),
 
-                      SignOutButton(onTap: _confirmSignOut),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
+                    // ── SUPPORT ──────────────────────────────────────────
+                    const _SectionLabel('SUPPORT'),
+                    const SizedBox(height: 12),
+                    _SettingsCard(children: [
+                      _SettingsTile(
+                        icon: PhosphorIcons.question(),
+                        title: 'Help & Support',
+                        subtitle: 'Get help and find answers',
+                        onTap: () {},
+                      ),
+                      const _RowDiv(),
+                      _SettingsTile(
+                        icon: PhosphorIcons.chatDots(),
+                        title: 'Contact Support',
+                        subtitle: 'We\'re here to help',
+                        onTap: () {},
+                      ),
+                      const _RowDiv(),
+                      _SettingsTile(
+                        icon: PhosphorIcons.shieldCheck(),
+                        title: 'Privacy Policy',
+                        subtitle: 'How we protect your data',
+                        onTap: () {},
+                      ),
+                      const _RowDiv(),
+                      _SettingsTile(
+                        icon: PhosphorIcons.fileText(),
+                        title: 'Terms of Service',
+                        subtitle: 'Read our terms and conditions',
+                        onTap: () {},
+                      ),
+                    ]),
+                    const SizedBox(height: 28),
+
+                    // ── ABOUT ────────────────────────────────────────────
+                    const _SectionLabel('ABOUT'),
+                    const SizedBox(height: 12),
+                    _SettingsCard(children: [
+                      _SettingsTile(
+                        icon: PhosphorIcons.info(),
+                        title: 'SENTIO App',
+                        subtitle: 'Version 1.0.0',
+                        trailing: const SizedBox.shrink(),
+                        onTap: () {},
+                      ),
+                    ]),
+                    const SizedBox(height: 28),
+
+                    // ── Sign Out ─────────────────────────────────────────
+                    _SignOutButton(onTap: _confirmSignOut),
+                    const SizedBox(height: 36),
+                  ],
                 ),
               ),
-
-              // Bottom nav — Profile tab active (this screen is under Profile)
-              SentioBottomNav(
-                currentIndex: 2,
-                onTap: (i) {
-                  if (i == 2) {
-                    Navigator.pop(context);
-                  } else {
-                    // Pop back to MainShell root for Home / History
-                    Navigator.popUntil(context, (r) => r.isFirst);
-                  }
-                },
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// _TopBar
-// ══════════════════════════════════════════════════════════════════════════════
-class _TopBar extends StatelessWidget {
+// ── Top bar ───────────────────────────────────────────────────────────────────
+class _SettingsTopBar extends StatelessWidget {
+  final bool showBack;
+  const _SettingsTopBar({required this.showBack});
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+      padding: const EdgeInsets.fromLTRB(4, 8, 16, 0),
       child: Row(
         children: [
-          IconButton(
-            icon: Icon(PhosphorIcons.caretLeft(), color: _kTextPri, size: 22),
-            onPressed: () => Navigator.pop(context),
-          ),
+          if (showBack)
+            IconButton(
+              icon: Icon(PhosphorIcons.caretLeft(),
+                  color: SentioColors.textPrimary, size: 22),
+              onPressed: () => Navigator.pop(context),
+            )
+          else
+            const SizedBox(width: 48),
           Expanded(
             child: Text(
               'Settings',
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
-                color: _kTextPri,
+                color: SentioColors.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ),
-          const SizedBox(width: 48), // mirror the icon button for centering
+          const SizedBox(width: 48),
         ],
       ),
     );
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// GlassCard — reusable dark rounded card
-// ══════════════════════════════════════════════════════════════════════════════
-class GlassCard extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-  final double radius;
-
-  const GlassCard({
-    super.key,
-    required this.child,
-    this.padding = const EdgeInsets.all(20),
-    this.radius = _kCardRadius,
-  });
+// ── Settings card (section container) ────────────────────────────────────────
+class _SettingsCard extends StatelessWidget {
+  final List<Widget> children;
+  const _SettingsCard({required this.children});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: _kCardBg,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: _kCardBorder),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x28000000),
-            blurRadius: 14,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      color: SentioColors.card,
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: SentioColors.cardBorder),
+      boxShadow: const [
+        BoxShadow(color: Color(0x1A000000), blurRadius: 10, offset: Offset(0, 4)),
+      ],
+    ),
+    child: Column(children: children),
+  );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// DeviceStatusRow — single connected device with battery indicator
-// ══════════════════════════════════════════════════════════════════════════════
-class DeviceStatusRow extends StatelessWidget {
-  final String   deviceName;
-  final bool     connected;
-  final int      batteryPct;    // 0–100
-  final IconData icon;
-  final Color    iconColor;
+// ── Settings tile ─────────────────────────────────────────────────────────────
+class _SettingsTile extends StatelessWidget {
+  final IconData     icon;
+  final String       title;
+  final String?      subtitle;
+  final Widget?      trailing;
+  final VoidCallback onTap;
 
-  const DeviceStatusRow({
-    super.key,
-    required this.deviceName,
-    required this.connected,
-    required this.batteryPct,
+  const _SettingsTile({
     required this.icon,
-    required this.iconColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColor = connected ? _kGreen : _kTextSec;
-    final statusLabel = connected ? 'Connected' : 'Disconnected';
-
-    return SizedBox(
-      height: 72,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Device avatar — styled icon placeholder
-          // TODO: replace with Image.asset('assets/images/<device>.png')
-          //       once product images are available
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              color: iconColor.withValues(alpha: 0.10),
-              border: Border.all(
-                color: iconColor.withValues(alpha: 0.25),
-                width: 1,
-              ),
-            ),
-            child: Icon(icon, color: iconColor, size: 26),
-          ),
-          const SizedBox(width: 14),
-
-          // Device name + connection status
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  deviceName,
-                  style: GoogleFonts.poppins(
-                    color: _kTextPri,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  statusLabel,
-                  style: GoogleFonts.poppins(
-                    color: statusColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Battery icon + percentage (only when connected)
-          if (connected) ...[
-            Icon(
-              PhosphorIcons.batteryHigh(),
-              color: _kGreen,
-              size: 24,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              '$batteryPct%',
-              style: GoogleFonts.poppins(
-                color: _kTextSec,
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// SettingsListRow — single settings row with icon, label, and trailing widget
-// ══════════════════════════════════════════════════════════════════════════════
-class SettingsListRow extends StatelessWidget {
-  final IconData      icon;
-  final String        label;
-  final Widget?       trailing;
-  final VoidCallback? onTap;
-
-  const SettingsListRow({
-    super.key,
-    required this.icon,
-    required this.label,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
     this.trailing,
-    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        height: 60,
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Icon(icon, color: _kTextSec, size: 22),
+            Icon(icon, color: SentioColors.textSecondary, size: 22),
             const SizedBox(width: 14),
             Expanded(
-              child: Text(
-                label,
-                style: GoogleFonts.poppins(
-                  color: _kTextPri,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w400,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(title, style: GoogleFonts.poppins(
+                    color: SentioColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  )),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle!, style: GoogleFonts.poppins(
+                      color: SentioColors.textSecondary,
+                      fontSize: 12,
+                    )),
+                  ],
+                ],
               ),
             ),
-            if (trailing != null) trailing!,
+            trailing ??
+                Icon(PhosphorIcons.caretRight(),
+                    color: SentioColors.textSecondary, size: 16),
           ],
         ),
       ),
@@ -443,161 +353,84 @@ class SettingsListRow extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// SignOutButton — full-width red-bordered destructive action button
-// ══════════════════════════════════════════════════════════════════════════════
-class SignOutButton extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const SignOutButton({super.key, required this.onTap});
+// ── Value + chevron trailing ──────────────────────────────────────────────────
+class _ValueChevron extends StatelessWidget {
+  final String value;
+  const _ValueChevron(this.value);
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        height: 64,
-        decoration: BoxDecoration(
-          color: _kRed.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(_kCardRadius),
-          border: Border.all(color: _kRed, width: 1.5),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          'Sign Out',
-          style: GoogleFonts.poppins(
-            color: _kRed,
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(value, style: GoogleFonts.poppins(
+        color: SentioColors.textSecondary,
+        fontSize: 13,
+      )),
+      const SizedBox(width: 4),
+      Icon(PhosphorIcons.caretRight(),
+          color: SentioColors.textSecondary, size: 16),
+    ],
+  );
+}
+
+// ── Sign out button ───────────────────────────────────────────────────────────
+class _SignOutButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _SignOutButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+            color: SentioColors.red.withValues(alpha: 0.70), width: 1.5),
+        color: SentioColors.red.withValues(alpha: 0.08),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(PhosphorIcons.signOut(), color: SentioColors.red, size: 20),
+          const SizedBox(width: 10),
+          Text('Sign Out', style: GoogleFonts.poppins(
+            color: SentioColors.red,
             fontSize: 16,
             fontWeight: FontWeight.w600,
-          ),
-        ),
+          )),
+        ],
       ),
-    );
-  }
+    ),
+  );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// SentioBottomNav — pill-style floating bottom navigation
-// ══════════════════════════════════════════════════════════════════════════════
-class SentioBottomNav extends StatelessWidget {
-  final int currentIndex;
-  final ValueChanged<int> onTap;
-
-  const SentioBottomNav({
-    super.key,
-    required this.currentIndex,
-    required this.onTap,
-  });
+// ── Row divider ───────────────────────────────────────────────────────────────
+class _RowDiv extends StatelessWidget {
+  const _RowDiv();
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        decoration: BoxDecoration(
-          color: _kCardBg,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: _kCardBorder),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _NavItem(
-              icon:     PhosphorIcons.house(),
-              label:    'Home',
-              selected: currentIndex == 0,
-              onTap:    () => onTap(0),
-            ),
-            _NavItem(
-              icon:     PhosphorIcons.chartBar(),
-              label:    'History',
-              selected: currentIndex == 1,
-              onTap:    () => onTap(1),
-            ),
-            _NavItem(
-              icon:     PhosphorIcons.user(),
-              label:    'Profile',
-              selected: currentIndex == 2,
-              onTap:    () => onTap(2),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const Divider(
+    height: 1, thickness: 0.5,
+    color: SentioColors.cardBorder,
+    indent: 52, endIndent: 0,
+  );
 }
 
-class _NavItem extends StatelessWidget {
-  final IconData     icon;
-  final String       label;
-  final bool         selected;
-  final VoidCallback onTap;
-
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final col = selected ? _kCyan : _kTextSec;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: col, size: 22),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                color: col,
-                fontSize: 10,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Private helpers ────────────────────────────────────────────────────────────
-
-class _CardTitle extends StatelessWidget {
+// ── Section label ─────────────────────────────────────────────────────────────
+class _SectionLabel extends StatelessWidget {
   final String text;
-  const _CardTitle(this.text);
+  const _SectionLabel(this.text);
 
   @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: GoogleFonts.poppins(
-        color: _kTextPri,
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
-      ),
-    );
-  }
-}
-
-class _RowDivider extends StatelessWidget {
-  const _RowDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Divider(
-      height: 1,
-      thickness: 0.5,
-      color: _kDivider,
-    );
-  }
+  Widget build(BuildContext context) => Text(
+    text,
+    style: GoogleFonts.poppins(
+      color: SentioColors.textSecondary,
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 1.2,
+    ),
+  );
 }

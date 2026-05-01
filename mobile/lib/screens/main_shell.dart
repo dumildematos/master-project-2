@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dashboard_screen.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
+import 'settings_screen.dart';
 
 // Dark futuristic bottom nav colours — match dashboard theme
 const _kNavBg     = Color(0xFF070F18);
@@ -31,6 +32,7 @@ class _MainShellState extends State<MainShell> {
     DashboardScreen(),
     HistoryScreen(),
     ProfileScreen(),
+    SettingsScreen(),
   ];
 
   @override
@@ -60,9 +62,10 @@ class _BottomNavBar extends StatelessWidget {
   });
 
   static const _items = [
-    _NavItem(icon: Icons.home_outlined,     activeIcon: Icons.home_rounded,  label: 'Home'),
-    _NavItem(icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart,     label: 'History'),
-    _NavItem(icon: Icons.person_outline,     activeIcon: Icons.person,        label: 'Profile'),
+    _NavItem(icon: Icons.home_outlined,      activeIcon: Icons.home_rounded,    label: 'Home'),
+    _NavItem(icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart,       label: 'History'),
+    _NavItem(icon: Icons.person_outline,     activeIcon: Icons.person,          label: 'Profile'),
+    _NavItem(icon: Icons.settings_outlined,  activeIcon: Icons.settings_rounded, label: 'Settings'),
   ];
 
   @override
