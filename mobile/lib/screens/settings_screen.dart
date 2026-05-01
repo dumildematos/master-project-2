@@ -93,6 +93,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final ble            = context.watch<BleProvider>();
     final muse2Connected = ble.state == BLEState.connected;
     final muse2Name      = ble.connectedDevice?.name ?? 'Muse 2';
+    final hatConnected   = ble.isHatConnected;
+    final hatName        = ble.connectedHat?.platformName ?? 'SENTIO Hat';
 
     return Scaffold(
       body: Container(
@@ -133,9 +135,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             const _RowDivider(),
                             DeviceStatusRow(
-                              // TODO: wire to real SENTIO Hat BLE status
-                              deviceName: 'SENTIO Hat',
-                              connected:  true,
+                              deviceName: hatName,
+                              connected:  hatConnected,
                               batteryPct: 80,
                               icon:       PhosphorIcons.hardHat(),
                               iconColor:  _kCyan,
