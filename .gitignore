@@ -19,6 +19,7 @@ develop-eggs/
 /lib64/
 backend/lib/
 backend/lib64/
+backend/sentio.db
 .venv/
 venv/
 env/
