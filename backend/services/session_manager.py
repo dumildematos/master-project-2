@@ -31,6 +31,9 @@ class SessionManager:
         self.stream_thread: Optional[threading.Thread] = None
         self.stream_stop_event = threading.Event()
         self._stream_lock = threading.Lock()
+        self.user_pattern_override: Optional[str] = None   # None = let AI decide
+        self.arduino_status: Optional[Dict[str, Any]] = None
+        self._arduino_lock = threading.Lock()
 
     def start_session(self, config: Dict[str, Any]) -> str:
         """
@@ -41,6 +44,8 @@ class SessionManager:
         self.session_state = SessionState.CONNECTING
         self.start_time = time.time()
         self.emotion_history = []
+        self.user_pattern_override = None
+        self.arduino_status = None
         self.clear_latest_stream_message()
 
         return self.current_session_id
@@ -73,6 +78,8 @@ class SessionManager:
         self.start_time = None
         self.emotion_history = []
         self.muse_connection = None
+        self.user_pattern_override = None
+        self.arduino_status = None
         self.clear_latest_stream_message()
 
     def add_emotion(self, emotion: str, confidence: Optional[float] = None, detected_emotion: Optional[str] = None):
@@ -152,6 +159,26 @@ class SessionManager:
 
     def is_streaming(self) -> bool:
         return self.stream_thread is not None and self.stream_thread.is_alive()
+
+    # ── User pattern override ─────────────────────────────────────────────────
+
+    def set_user_pattern_override(self, pattern: Optional[str]) -> None:
+        with self._stream_lock:
+            self.user_pattern_override = pattern
+
+    def get_user_pattern_override(self) -> Optional[str]:
+        with self._stream_lock:
+            return self.user_pattern_override
+
+    # ── Arduino status reporting ──────────────────────────────────────────────
+
+    def set_arduino_status(self, status: Dict[str, Any]) -> None:
+        with self._arduino_lock:
+            self.arduino_status = status
+
+    def get_arduino_status(self) -> Optional[Dict[str, Any]]:
+        with self._arduino_lock:
+            return self.arduino_status
 
     def is_active(self) -> bool:
         """

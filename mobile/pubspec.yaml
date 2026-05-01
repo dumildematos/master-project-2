@@ -28,6 +28,18 @@ dependencies:
   webview_flutter: ^4.8.0
   path_provider: ^2.1.4
 
+  # Auth
+  google_sign_in: ^6.2.0
+  flutter_secure_storage: ^9.2.2
+
+  # UI / icons / fonts
+  google_fonts: ^6.0.0
+  font_awesome_flutter: ^11.0.0
+  flutter_svg: ^2.0.0
+  fl_chart: ^0.69.0
+  phosphor_flutter: ^2.1.0
+  flutter_animate: ^4.5.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -37,3 +49,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/models/
+    - assets/images/

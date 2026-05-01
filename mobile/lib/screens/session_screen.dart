@@ -1,0 +1,772 @@
+import 'dart:math';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:provider/provider.dart';
+
+import '../models/sentio_state.dart';
+import '../providers/sentio_provider.dart';
+import '../services/sentio_api.dart' as api;
+import '../theme/theme.dart';
+
+// ── Screen-local design tokens ─────────────────────────────────────────────────
+const _kBgTop      = Color(0xFF02080D);
+const _kBgBottom   = Color(0xFF07131B);
+const _kCardBg     = Color(0xFF101820);
+const _kCardBorder = Color(0xFF1E2A33);
+const _kAccentCyan = Color(0xFF00D9FF);
+const _kAccentPurp = Color(0xFF8A3FFC);
+const _kAccentRed  = Color(0xFFFF3B4A);
+const _kAccentYell = Color(0xFFFFC107);
+const _kAccentGrn  = Color(0xFF00C48C);
+const _kTextPri    = Color(0xFFFFFFFF);
+const _kTextSec    = Color(0xFF9AA6B2);
+const _kCardRadius = 24.0;
+
+// ── Root screen ────────────────────────────────────────────────────────────────
+class SessionScreen extends StatefulWidget {
+  const SessionScreen({super.key});
+
+  @override
+  State<SessionScreen> createState() => _SessionScreenState();
+}
+
+class _SessionScreenState extends State<SessionScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _anim;
+  bool _running = true;
+  int  _seconds = 0; // TODO: seed from existing session if resuming
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+    _startSession();
+    _tick();
+  }
+
+  void _tick() {
+    Future.delayed(const Duration(seconds: 1), () {
+      if (!mounted) return;
+      if (_running) setState(() => _seconds++);
+      _tick();
+    });
+  }
+
+  Future<void> _startSession() async {
+    // TODO: connect to real Muse EEG device session via api.startSession()
+    try {
+      await api.startSession(const api.SessionConfig(
+        patternType:       'fluid',
+        signalSensitivity: 0.5,
+        emotionSmoothing:  0.5,
+        deviceSource:      'mobile',
+      ));
+    } catch (_) {}
+  }
+
+  Future<void> _endSession() async {
+    setState(() => _running = false);
+    try { await api.stopSession(); } catch (_) {}
+    if (mounted) Navigator.pop(context);
+  }
+
+  void _togglePause() => setState(() => _running = !_running);
+
+  String get _timerStr {
+    final m = _seconds ~/ 60;
+    final s = _seconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sentio       = context.watch<SentioProvider>();
+    final data         = sentio.data;
+    final emotionHist  = sentio.emotionHistory;
+
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [_kBgTop, _kBgBottom],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _TopBar(onBack: _endSession),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                  child: Column(
+                    children: [
+                      // 1. Current Session card
+                      SessionHeaderCard(
+                        timerStr:     _timerStr,
+                        isRunning:    _running,
+                        onPauseResume: _togglePause,
+                      ),
+                      const SizedBox(height: 14),
+
+                      // 2. State Timeline chart
+                      // TODO: pass real sentio.emotionHistory when EEG signal available
+                      StateTimelineChart(emotionHistory: emotionHist),
+                      const SizedBox(height: 14),
+
+                      // 3. Session Average
+                      // TODO: derive dominant state from emotionHistory aggregation
+                      SessionAverageCard(
+                        emotion:    data.emotion,
+                        percentage: data.confidence.round(),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // 4. Top States breakdown
+                      // TODO: derive percentages from sentio.emotionHistory when live
+                      TopStatesCard(emotionHistory: emotionHist),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ),
+              // Fixed bottom nav
+              SentioBottomNav(
+                currentIndex: 1, // History tab is active during a session
+                onTap: (i) { if (i != 1) _endSession(); },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Top bar ────────────────────────────────────────────────────────────────────
+class _TopBar extends StatelessWidget {
+  final VoidCallback onBack;
+  const _TopBar({required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(PhosphorIcons.arrowLeft(), color: _kTextPri, size: 22),
+            onPressed: onBack,
+          ),
+          Expanded(
+            child: Text(
+              'Session',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                color: _kTextPri,
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 48), // mirror the icon button width for centering
+        ],
+      ),
+    );
+  }
+}
+
+// ── Reusable glass card ────────────────────────────────────────────────────────
+class GlassCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final double radius;
+
+  const GlassCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(20),
+    this.radius = _kCardRadius,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: _kCardBg,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: _kCardBorder),
+      ),
+      child: child,
+    );
+  }
+}
+
+// ── 1. Session Header Card ─────────────────────────────────────────────────────
+class SessionHeaderCard extends StatelessWidget {
+  final String timerStr;
+  final bool isRunning;
+  final VoidCallback onPauseResume;
+
+  const SessionHeaderCard({
+    super.key,
+    required this.timerStr,
+    required this.isRunning,
+    required this.onPauseResume,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Current Session',
+                  style: GoogleFonts.poppins(
+                    color: _kTextSec,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Meditation', // TODO: pass session type from navigation args
+                  style: GoogleFonts.poppins(
+                    color: _kTextPri,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  timerStr,
+                  style: GoogleFonts.poppins(
+                    color: _kTextPri,
+                    fontSize: 50,
+                    fontWeight: FontWeight.w700,
+                    height: 1.0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: onPauseResume,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 11),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _kAccentCyan, width: 1.5),
+              ),
+              child: Text(
+                isRunning ? 'Pause' : 'Resume',
+                style: GoogleFonts.poppins(
+                  color: _kTextPri,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 2. State Timeline Chart ────────────────────────────────────────────────────
+class StateTimelineChart extends StatelessWidget {
+  // TODO: receives real emotion history from SentioProvider once EEG is live
+  final List<EmotionHistoryEntry> emotionHistory;
+
+  const StateTimelineChart({super.key, required this.emotionHistory});
+
+  static const _emotionY = <String, double>{
+    'focused':  3.6,
+    'calm':     2.8,
+    'relaxed':  2.2,
+    'neutral':  2.0,
+    'excited':  1.6,
+    'stressed': 1.0,
+  };
+
+  // Demo waveform that mirrors the screenshot; replaced by real history when present
+  static const _demoSpots = [
+    FlSpot(0.0, 2.0),  FlSpot(0.8, 2.6),  FlSpot(1.5, 3.2),
+    FlSpot(2.2, 2.8),  FlSpot(3.0, 3.4),  FlSpot(3.8, 2.6),
+    FlSpot(4.5, 2.1),  FlSpot(5.0, 2.4),  FlSpot(5.8, 3.0),
+    FlSpot(6.5, 3.7),  FlSpot(7.3, 3.3),  FlSpot(8.0, 3.8),
+    FlSpot(9.0, 3.1),  FlSpot(9.8, 3.5),  FlSpot(10.5, 2.6),
+    FlSpot(11.0, 2.2), FlSpot(11.8, 2.5), FlSpot(12.5, 2.1),
+    FlSpot(13.2, 2.4), FlSpot(14.0, 2.2), FlSpot(15.0, 2.3),
+  ];
+
+  List<FlSpot> _buildSpots() {
+    if (emotionHistory.length < 2) return _demoSpots;
+    final n = emotionHistory.length;
+    return List.generate(n, (i) {
+      final e = emotionHistory[i].emotion.toLowerCase();
+      return FlSpot((i / (n - 1)) * 15.0, _emotionY[e] ?? 2.0);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final spots = _buildSpots();
+    return GlassCard(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'State Timeline',
+            style: GoogleFonts.poppins(
+              color: _kTextPri,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 168,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Left emotion legend icons
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _EmotionDot(
+                      icon: PhosphorIcons.crosshair(),
+                      color: _kAccentGrn,
+                    ),
+                    _EmotionDot(
+                      // Stressed — mandala-like; use atom as closest phosphor match
+                      icon: PhosphorIcons.atom(),
+                      color: _kAccentRed,
+                    ),
+                    _EmotionDot(
+                      // Relaxed / Calm lotus — fallback to Icons.spa if unavailable
+                      icon: PhosphorIcons.flowerLotus(),
+                      color: _kAccentPurp,
+                    ),
+                    _EmotionDot(
+                      icon: PhosphorIcons.lightning(),
+                      color: _kAccentPurp,
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 10),
+                Expanded(child: _buildChart(spots)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChart(List<FlSpot> spots) {
+    return LineChart(
+      LineChartData(
+        minX: 0, maxX: 15,
+        minY: 0.5, maxY: 4.5,
+        clipData: const FlClipData.all(),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: 1,
+          getDrawingHorizontalLine: (_) => const FlLine(
+            color: _kCardBorder,
+            strokeWidth: 1,
+            dashArray: [4, 6],
+          ),
+        ),
+        titlesData: FlTitlesData(
+          leftTitles:  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:   const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 22,
+              interval: 5,
+              getTitlesWidget: (v, _) => Text(
+                '${v.toInt()}:00',
+                style: GoogleFonts.poppins(
+                  color: _kTextSec,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        lineTouchData: const LineTouchData(enabled: false),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            curveSmoothness: 0.30,
+            barWidth: 2.5,
+            isStrokeCapRound: true,
+            dotData: const FlDotData(show: false),
+            belowBarData: BarAreaData(show: false),
+            // Multicolor gradient: blue → cyan → yellow matching screenshot
+            gradient: const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                Color(0xFF3A86FF), // blue  (0:00 – 5:00)
+                _kAccentCyan,      // cyan  (5:00 – 10:00)
+                _kAccentYell,      // yellow (10:00 – 15:00)
+              ],
+              stops: [0.0, 0.50, 1.0],
+            ),
+          ),
+        ],
+      ),
+      duration: const Duration(milliseconds: 200),
+    );
+  }
+}
+
+class _EmotionDot extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  const _EmotionDot({required this.icon, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color.withValues(alpha: 0.15),
+        border: Border.all(color: color.withValues(alpha: 0.45), width: 1.2),
+      ),
+      child: Icon(icon, color: color, size: 14),
+    );
+  }
+}
+
+// ── 3. Session Average Card ────────────────────────────────────────────────────
+class SessionAverageCard extends StatelessWidget {
+  // TODO: derive from aggregated sentio.emotionHistory once EEG is live
+  final String emotion;
+  final int percentage;
+
+  const SessionAverageCard({
+    super.key,
+    required this.emotion,
+    required this.percentage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final e   = emotion.isEmpty ? 'calm' : emotion.toLowerCase();
+    final pct = percentage == 0 ? 72 : percentage; // 72 % demo fallback
+    final col = emotionColor(e);
+    final lbl = emotionLabel(e);
+
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Session Average',
+            style: GoogleFonts.poppins(color: _kTextSec, fontSize: 12),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Container(
+                width: 42, height: 42,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: col.withValues(alpha: 0.15),
+                ),
+                child: Icon(_iconForEmotion(e), color: col, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Text(
+                lbl,
+                style: GoogleFonts.poppins(
+                  color: _kTextPri,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '$pct%',
+                style: GoogleFonts.poppins(
+                  color: _kTextPri,
+                  fontSize: 34,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _iconForEmotion(String e) {
+    switch (e) {
+      case 'focused': return PhosphorIcons.crosshair();
+      case 'stressed': return PhosphorIcons.atom();
+      case 'excited': return PhosphorIcons.lightning();
+      default: return PhosphorIcons.flowerLotus(); // calm, relaxed, neutral
+    }
+  }
+}
+
+// ── 4. Top States Card ─────────────────────────────────────────────────────────
+class TopStatesCard extends StatelessWidget {
+  // TODO: compute real percentages from sentio.emotionHistory once EEG is live
+  final List<EmotionHistoryEntry> emotionHistory;
+
+  const TopStatesCard({super.key, required this.emotionHistory});
+
+  List<_TopStateRow> _rows() {
+    if (emotionHistory.isEmpty) {
+      // Demo data that matches the screenshot
+      return const [
+        _TopStateRow('Focused',  0.65, 'focused'),
+        _TopStateRow('Calm',     0.20, 'calm'),
+        _TopStateRow('Relaxed',  0.10, 'relaxed'),
+        _TopStateRow('Stressed', 0.05, 'stressed'),
+      ];
+    }
+    final counts = <String, int>{};
+    for (final e in emotionHistory) {
+      final k = e.emotion.toLowerCase();
+      counts[k] = (counts[k] ?? 0) + 1;
+    }
+    final total  = emotionHistory.length;
+    final sorted = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.take(4).map((e) => _TopStateRow(
+      emotionLabel(e.key),
+      e.value / total,
+      e.key,
+    )).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = _rows();
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Top States',
+            style: GoogleFonts.poppins(
+              color: _kTextPri,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 18),
+          ...rows.map((r) => _TopStateRowWidget(row: r)),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopStateRow {
+  final String label;
+  final double fraction;
+  final String emotionKey;
+  const _TopStateRow(this.label, this.fraction, this.emotionKey);
+}
+
+class _TopStateRowWidget extends StatelessWidget {
+  final _TopStateRow row;
+  const _TopStateRowWidget({required this.row});
+
+  IconData _icon() {
+    switch (row.emotionKey) {
+      case 'focused': return PhosphorIcons.crosshair();
+      case 'stressed': return PhosphorIcons.atom();
+      case 'excited': return PhosphorIcons.lightning();
+      default: return PhosphorIcons.flowerLotus(); // calm, relaxed, neutral
+    }
+  }
+
+  Color _barColor() {
+    switch (row.emotionKey) {
+      case 'relaxed': return _kAccentPurp;
+      case 'stressed': return _kAccentRed;
+      case 'excited': return _kAccentYell;
+      default: return _kAccentCyan; // focused, calm, neutral
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final col = emotionColor(row.emotionKey);
+    final bar = _barColor();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Icon(_icon(), color: col, size: 20),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 60,
+            child: Text(
+              row.label,
+              style: GoogleFonts.poppins(
+                color: _kTextPri,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: row.fraction,
+                minHeight: 5,
+                backgroundColor: _kCardBorder,
+                valueColor: AlwaysStoppedAnimation<Color>(bar),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 34,
+            child: Text(
+              '${(row.fraction * 100).round()}%',
+              textAlign: TextAlign.right,
+              style: GoogleFonts.poppins(
+                color: _kTextPri,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Bottom Navigation ──────────────────────────────────────────────────────────
+class SentioBottomNav extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  const SentioBottomNav({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        decoration: BoxDecoration(
+          color: _kCardBg,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: _kCardBorder),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _NavItem(
+              icon:     PhosphorIcons.house(),
+              label:    'Home',
+              selected: currentIndex == 0,
+              onTap:    () => onTap(0),
+            ),
+            _NavItem(
+              icon:     PhosphorIcons.shield(),
+              label:    'History',
+              selected: currentIndex == 1,
+              onTap:    () => onTap(1),
+            ),
+            _NavItem(
+              icon:     PhosphorIcons.user(),
+              label:    'Profile',
+              selected: currentIndex == 2,
+              onTap:    () => onTap(2),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final col = selected ? _kAccentCyan : _kTextSec;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: col, size: 22),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                color: col,
+                fontSize: 10,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

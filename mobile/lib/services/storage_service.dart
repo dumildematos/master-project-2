@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Thin wrapper around SharedPreferences — mirrors runtimeConfig.ts.
 class StorageService {
   static const _keyUrl = 'sentioApiUrl';
-  static const _defaultUrl = 'http://127.0.0.1:8000';
+  static const _defaultUrl = 'http://192.168.1.180:8000';
   static const _wsPath = '/ws/brain-stream';
 
   static String _trim(String v) => v.replaceAll(RegExp(r'/+$'), '');

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'providers/ble_provider.dart';
 import 'providers/sentio_provider.dart';
-import 'app.dart';
+import 'screens/onboarding_screen.dart';
 import 'theme/theme.dart';
 
 void main() {
@@ -17,14 +18,18 @@ class SentioRoot extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => BleProvider()),
-        ChangeNotifierProvider(create: (_) => SentioProvider()),
+        ChangeNotifierProvider<BleProvider>(
+          create: (_) => BleProvider(),
+        ),
+        ChangeNotifierProvider<SentioProvider>(
+          create: (_) => SentioProvider(),
+        ),
       ],
       child: MaterialApp(
-        title:         'Sentio',
-        theme:         sentioTheme,
+        title: 'SENTIO',
         debugShowCheckedModeBanner: false,
-        home:          const SentioApp(),
+        theme: SentioTheme.dark(),
+        home: const OnboardingScreen(),
       ),
     );
   }

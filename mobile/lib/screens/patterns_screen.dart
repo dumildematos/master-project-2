@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../theme/theme.dart';
+import '../services/sentio_api.dart' as api;
 
 class PatternsScreen extends StatefulWidget {
   const PatternsScreen({super.key});
@@ -13,13 +14,24 @@ class PatternsScreen extends StatefulWidget {
 }
 
 class _PatternsScreenState extends State<PatternsScreen> {
-  double _intensity  = 0.74;
-  double _brightness = 0.92;
-  bool   _loading    = true;
+  double  _intensity       = 0.74;
+  double  _brightness      = 0.92;
+  bool    _loading         = true;
+  String? _selectedPattern;   // null = AUTO (AI-driven)
 
   WebViewController? _webCtrl;
   HttpServer?        _server;
   int                _port = 0;
+
+  static const _patterns = [
+    ('fluid',      'FLUID WAVES',  Icons.waves),
+    ('breathing',  'BREATHING',    Icons.air),
+    ('geometric',  'GEOMETRIC',    Icons.hexagon_outlined),
+    ('fireworks',  'FIREWORKS',    Icons.auto_awesome),
+    ('stress',     'CHAOTIC',      Icons.electric_bolt),
+    ('pulse',      'PULSE',        Icons.radio_button_checked),
+    ('stars',      'STAR FIELD',   Icons.star_border),
+  ];
 
   @override
   void initState() {
@@ -87,6 +99,15 @@ class _PatternsScreenState extends State<PatternsScreen> {
     _webCtrl?.runJavaScript(
       'recalibrate(${_intensity.toStringAsFixed(3)}, ${_brightness.toStringAsFixed(3)});',
     );
+  }
+
+  Future<void> _selectPattern(String? pattern) async {
+    try {
+      await api.selectPattern(pattern);
+      if (mounted) setState(() => _selectedPattern = pattern);
+    } catch (_) {
+      // Non-fatal — backend may not be reachable
+    }
   }
 
   @override
@@ -201,6 +222,18 @@ class _PatternsScreenState extends State<PatternsScreen> {
                 setState(() => _brightness = v);
                 _update();
               },
+            ),
+          ),
+
+          const SizedBox(height: kMd),
+
+          // ── Pattern Selection ────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: kMd),
+            child: _PatternSelector(
+              selected:  _selectedPattern,
+              patterns:  _patterns,
+              onSelect:  _selectPattern,
             ),
           ),
 
@@ -340,6 +373,131 @@ class _SliderCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Pattern Selector ───────────────────────────────────────────────────────────
+class _PatternSelector extends StatelessWidget {
+  final String?                                      selected;
+  final List<(String, String, IconData)>             patterns;
+  final void Function(String?)                       onSelect;
+
+  const _PatternSelector({
+    required this.selected,
+    required this.patterns,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(kMd, kMd, kMd, kSm),
+      decoration: BoxDecoration(
+        color: kBg2,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'PATTERN OVERRIDE',
+                style: TextStyle(
+                  fontFamily: 'monospace', fontSize: 11,
+                  fontWeight: FontWeight.bold, color: kMuted, letterSpacing: 1.5,
+                ),
+              ),
+              Text(
+                selected == null ? 'AUTO' : selected!.toUpperCase(),
+                style: const TextStyle(
+                  fontFamily: 'monospace', fontSize: 13,
+                  fontWeight: FontWeight.bold, color: kCyan,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: kSm),
+          // AUTO chip
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _PatternChip(
+                label: 'AUTO',
+                icon:  Icons.auto_fix_high,
+                active: selected == null,
+                onTap: () => onSelect(null),
+              ),
+              for (final (id, label, icon) in patterns)
+                _PatternChip(
+                  label:  label,
+                  icon:   icon,
+                  active: selected == id,
+                  onTap:  () => onSelect(id),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'AUTO lets the AI choose based on your emotion.',
+            style: TextStyle(
+              fontFamily: 'monospace', fontSize: 9,
+              color: kMuted, letterSpacing: 0.8,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PatternChip extends StatelessWidget {
+  final String   label;
+  final IconData icon;
+  final bool     active;
+  final VoidCallback onTap;
+
+  const _PatternChip({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? kCyan.withOpacity(0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: active ? kCyan : kBorder,
+            width: active ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 13, color: active ? kCyan : kMuted),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 10,
+              fontWeight: active ? FontWeight.bold : FontWeight.normal,
+              color: active ? kCyan : kMuted,
+              letterSpacing: 1,
+            ),
+          ),
+        ]),
       ),
     );
   }
