@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     bluemuse_ppg_lsl_stream_type: str = "PPG"
     bluemuse_lsl_resolve_timeout: float = 3.0
 
+    # muselsl — pure-Python BLE driver (pip install muselsl)
+    # Set device_source="muselsl" to use this path instead of BrainFlow or BlueMuse.
+    muselsl_scan_timeout: float = 5.0      # BLE advertisement scan duration
+    muselsl_settle_seconds: float = 4.0    # wait after stream thread starts before resolving LSL
+    muselsl_lsl_resolve_timeout: float = 8.0  # total timeout waiting for LSL outlet to appear
+
     # EEG processing
     eeg_update_interval: float = 0.05  # target cadence for publishing fresh EEG frames
     heart_rate_window_seconds: float = 12.0
@@ -67,6 +73,25 @@ class Settings(BaseSettings):
     guidance_model: str = "claude-haiku-4-5"
     guidance_cache_ttl: float = 20.0   # seconds before re-fetching guidance for same state
     pattern_cache_ttl: float  = 30.0   # seconds before re-fetching AI pattern for same state
+
+    # ── Database ──────────────────────────────────────────────────────────────
+    # SQLite by default; swap to postgresql+psycopg2://user:pass@host/db for prod
+    database_url: str = "sqlite:///./sentio.db"
+
+    # ── JWT authentication ────────────────────────────────────────────────────
+    jwt_secret: str = "CHANGE_ME_use_openssl_rand_hex_32_in_production"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 43200   # 30 days
+
+    # ── Default test account (debug only unless overridden) ───────────────────
+    seed_default_user: bool = True
+    default_test_user_email: str = "test@sentio.com"
+    default_test_user_password: str = "Test1234!"
+
+    # ── Google OAuth 2.0 ─────────────────────────────────────────────────────
+    google_web_client_id: str = ""
+    google_android_client_id: str = ""
+    google_ios_client_id: str = ""
 
 
 # Single global settings instance

@@ -21,8 +21,8 @@
 //
 #define LED_PIN         18            // ESP32 GPIO pin → 330 Ω resistor → DIN
 
-#define MATRIX_W        25            // LEDs per horizontal row across the shirt
-#define MATRIX_H        12            // number of sewn rows (height of the panel)
+#define MATRIX_W        8            // LEDs per horizontal row across the shirt
+#define MATRIX_H        8            // number of sewn rows (height of the panel)
 #define NUM_LEDS        (MATRIX_W * MATRIX_H)   // 300 = full 5 m BTF-LIGHTING strip
 
 // Wiring layout — serpentine means odd rows run right-to-left.
@@ -46,13 +46,13 @@
 // Auth mode:
 //   0 = WPA/WPA2 Personal  (home / hotspot)
 //   1 = WPA2-Enterprise / 802.1X  (university network)
-#define WIFI_AUTH_MODE  0             // ← change to 1 for WPA2-Enterprise
+#define WIFI_AUTH_MODE  1             // ← change to 1 for WPA2-Enterprise
 
-#define WIFI_SSID       "YourNetwork"
-#define WIFI_PASSWORD   "YourPassword"
+#define WIFI_SSID       "UE-Students"
+#define WIFI_PASSWORD   "Dark$ider1"
 
 // WPA2-Enterprise only (WIFI_AUTH_MODE 1)
-#define WIFI_USERNAME   "student_id"
+#define WIFI_USERNAME   "20220178"
 #define WIFI_IDENTITY   WIFI_USERNAME
 
 // ── Sentio backend ────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@
 //
 // TIP: If you use a phone hotspot, set the backend host here and connect
 //      both the ESP32 and the laptop to the same hotspot.
-#define WS_HOST         "192.168.1.100"
+#define WS_HOST         "10.208.194.119"
 #define WS_PORT         8000
 #define WS_PATH         "/ws/brain-stream"
 #define WS_RECONNECT_MS 3000          // ms between reconnect attempts

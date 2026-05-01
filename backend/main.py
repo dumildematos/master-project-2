@@ -1,10 +1,15 @@
 import logging
 import time
+from contextlib import asynccontextmanager
+from datetime import datetime
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from passlib.context import CryptContext
 from api.routes import router as api_router
 from api.websocket import router as ws_router
+from api.auth import router as auth_router
+from api.users import router as users_router
 from config import settings
 
 if not logging.getLogger().handlers:
@@ -14,8 +19,49 @@ if not logging.getLogger().handlers:
     )
 
 logger = logging.getLogger("sentio.api")
+_pwd_ctx = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
-app = FastAPI(title=settings.app_name, debug=settings.debug)
+
+def _seed_default_user() -> None:
+    from database import SessionLocal
+    from models.db_models import User
+
+    email = settings.default_test_user_email
+    password = settings.default_test_user_password
+    if not email or not password:
+        return
+
+    db = SessionLocal()
+    try:
+        if db.query(User).filter(User.email == email).first():
+            return
+
+        user = User(
+            email=email,
+            name="Test User",
+            provider="email",
+            hashed_password=_pwd_ctx.hash(password),
+            last_login=datetime.utcnow(),
+        )
+        db.add(user)
+        db.commit()
+        logger.info("Seeded default test user: %s", email)
+    finally:
+        db.close()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Create DB tables on startup (idempotent)."""
+    from database import create_tables
+    create_tables()
+    logger.info("Database tables ready")
+    if settings.debug and settings.seed_default_user:
+        _seed_default_user()
+    yield
+
+
+app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -65,7 +111,9 @@ async def log_api_requests(request: Request, call_next):
 # -----------------------------
 # Include routers
 # -----------------------------
-app.include_router(api_router, prefix="/api")
+app.include_router(api_router,   prefix="/api")
+app.include_router(auth_router,  prefix="/api/auth",  tags=["auth"])
+app.include_router(users_router, prefix="/api/users", tags=["users"])
 app.include_router(ws_router)
 
 # -----------------------------

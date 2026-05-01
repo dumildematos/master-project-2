@@ -2,7 +2,8 @@
 pattern_service.py
 ------------------
 Uses Claude AI to generate a fully-defined LED pattern for each EEG brain state:
-  - pattern_type  : which animation to run  (fluid / geometric / pulse / stars)
+  - pattern_type  : which animation to run
+                    fluid / breathing / geometric / fireworks / stress / pulse / stars
   - primary/secondary/accent/shadow : four hex colours that express the emotion
   - speed         : animation playback rate  (0 = very slow, 1 = very fast)
   - complexity    : visual intricacy          (0 = simple,   1 = dense)
@@ -66,7 +67,7 @@ and makes the garment feel alive and emotionally resonant.
 
 Reply with ONLY valid JSON — no markdown, no extra keys:
 {{
-  "pattern_type": "fluid|geometric|pulse|stars",
+  "pattern_type": "fluid|breathing|geometric|fireworks|stress|pulse|stars",
   "primary":   "#RRGGBB",
   "secondary": "#RRGGBB",
   "accent":    "#RRGGBB",
@@ -76,11 +77,14 @@ Reply with ONLY valid JSON — no markdown, no extra keys:
   "intensity":  0.0
 }}
 
-Pattern guide:
-  fluid     — slow flowing sine-wave plasma  → calm, relaxed, meditative states
-  geometric — rotating concentric rings      → focused, analytical, alert states
-  pulse     — expanding cross / ring bursts  → excited, stressed, high-arousal states
-  stars     — twinkling constellation field  → neutral, creative, dreamy states
+Pattern guide (pick the single best match):
+  fluid     — slow oceanic sine-wave plasma, global breathing overlay  → calm
+  breathing — radial glow that blooms/recedes at a 4-second breath tempo → relaxed, peaceful
+  geometric — crisp concentric rings + rotating 8-fold spokes           → focused, analytical
+  fireworks — colour-spark particles bursting from random points        → excited, joyful
+  stress    — chaotic high-frequency flicker, stark on/off contrast     → stressed, anxious
+  pulse     — expanding cross + radial ring bursts                      → high-arousal (generic)
+  stars     — twinkling constellation on a soft ambient glow            → neutral, dreamy
 
 Parameter guide (all values 0.0 – 1.0):
   speed      : animation playback speed  (0 = very slow,   1 = very fast)
@@ -170,7 +174,10 @@ def _fetch_in_background(
             pattern[key] = round(max(0.0, min(1.0, float(pattern[key]))), 3)
 
         # Validate pattern_type is one of the known values
-        if pattern["pattern_type"] not in ("fluid", "geometric", "pulse", "stars"):
+        _VALID_PATTERNS = {
+            "fluid", "breathing", "geometric", "fireworks", "stress", "pulse", "stars",
+        }
+        if pattern["pattern_type"] not in _VALID_PATTERNS:
             logger.warning(
                 "AI pattern returned unknown pattern_type=%r — defaulting to 'fluid'",
                 pattern["pattern_type"],

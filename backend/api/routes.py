@@ -64,6 +64,24 @@ def _brainflow_http_status(error: BrainFlowError) -> int:
 # -----------------------------
 
 
+@router.get("/session/devices")
+def list_muse_devices():
+    """
+    Scan for nearby Muse headsets via muselsl BLE advertisement scan.
+
+    Requires muselsl to be installed (already in requirements.txt).
+    Takes up to muselsl_scan_timeout seconds (default 5 s).
+    Returns a list of dicts with 'name' and 'address' keys.
+    """
+    from eeg.muse_connection import MuseConnection
+    try:
+        scan_timeout = settings.muselsl_scan_timeout
+    except AttributeError:
+        scan_timeout = 5.0
+    devices = MuseConnection.discover_muses(timeout=scan_timeout)
+    return {"devices": devices, "count": len(devices)}
+
+
 @router.post(
     "/session/start",
     response_model=SessionStartResponse,
@@ -73,20 +91,25 @@ def start_session(config: SessionConfig):
     """
     Start a new EEG session.
 
-    When device_source is "mobile" the server skips Bluetooth entirely —
-    the phone itself connects to the Muse 2 headset and pushes band powers
-    via POST /api/eeg/mobile-bands.  All other sources use the normal
-    BrainFlow / BlueMuse BLE path.
+    device_source options
+    ─────────────────────
+    "mobile"   — Phone acts as BLE bridge; server skips its own BLE.
+    "muselsl"  — Pure-Python BLE via muselsl (no external app required).
+                 The server discovers the headset, starts an LSL stream
+                 thread, and reads EEG via PyLSL.
+    "bluemuse" — Read from an LSL stream created by the BlueMuse Windows app.
+    "brainflow"— BrainFlow native BLE (headset must be paired in OS settings).
+    "auto"     — Try BlueMuse → BrainFlow in order.
     """
     session_config = config.model_dump(mode="json")
 
     if config.device_source == DeviceSource.mobile:
         # Mobile phone is the BLE bridge — no server-side BLE connection needed.
         session_id = session_manager.start_session(session_config)
-        session_manager.set_state(SessionState.RUNNING)   # ready to receive data
+        session_manager.set_state(SessionState.RUNNING)
         return {"session_id": session_id, "status": "started"}
 
-    # ── Server-side BLE (BrainFlow / BlueMuse) ─────────────────────────────
+    # ── Server-side BLE (muselsl / BrainFlow / BlueMuse / auto) ───────────
     try:
         muse_connection = _build_muse_connection(session_config)
         muse_connection.connect()
@@ -297,6 +320,38 @@ def receive_mobile_bands(payload: MobileBandsPayload):
 # -----------------------------
 # PATTERN ENDPOINTS
 # -----------------------------
+
+_VALID_ARDUINO_PATTERNS = frozenset({
+    "fluid", "breathing", "geometric", "fireworks", "stress", "pulse", "stars",
+})
+
+
+class PatternSelectPayload(BaseModel):
+    pattern_type: Optional[str] = Field(
+        default=None,
+        description=(
+            "One of: fluid, breathing, geometric, fireworks, stress, pulse, stars. "
+            "Omit or pass null to restore automatic AI/emotion-based selection."
+        ),
+    )
+
+
+@router.post("/pattern/select")
+def select_pattern(payload: PatternSelectPayload):
+    """
+    Override the Arduino LED pattern type for the active session.
+    The emotion-matched colour palette is preserved — only the animation changes.
+    Pass pattern_type=null to restore automatic AI selection.
+    """
+    pt = payload.pattern_type or None
+    if pt and pt not in _VALID_ARDUINO_PATTERNS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown pattern '{pt}'. Valid: {sorted(_VALID_ARDUINO_PATTERNS)}",
+        )
+    session_manager.set_user_pattern_override(pt)
+    return {"status": "ok", "pattern_type": pt, "auto": pt is None}
+
 
 @router.get(
     "/pattern/generate",

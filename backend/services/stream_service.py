@@ -32,6 +32,18 @@ heart_rate_processor = HeartRateProcessor(
 )
 
 
+def _apply_user_pattern_override(ai_pattern: dict | None) -> dict | None:
+    """
+    If the user has selected a specific pattern type, force it into the
+    ai_pattern dict while keeping the AI-generated colours and parameters.
+    Returns None when no AI pattern is available yet.
+    """
+    override = session_manager.get_user_pattern_override()
+    if not override or ai_pattern is None:
+        return ai_pattern
+    return {**ai_pattern, "pattern_type": override}
+
+
 def _get_emotion_smoothing() -> float:
     configured = session_manager.session_config.get("emotion_smoothing", 0.5)
     try:
@@ -221,7 +233,7 @@ def _build_stream_message(
         "config": stream_config,
         "age": stream_config.get("age"),
         "gender": stream_config.get("gender"),
-        "pattern_type": selected_pattern.value,
+        "pattern_type": session_manager.get_user_pattern_override() or selected_pattern.value,
         "active": 1,
         "ai_guidance": get_guidance(
             emotion=emotion_result.emotion.value,
@@ -243,7 +255,7 @@ def _build_stream_message(
         # AI-generated LED pattern definition (None until first Claude response,
         # then cached per emotion/confidence bucket).  When present the Arduino
         # uses these values instead of its own static palette/parameter logic.
-        "ai_pattern": get_ai_pattern(
+        "ai_pattern": _apply_user_pattern_override(get_ai_pattern(
             emotion=emotion_result.emotion.value,
             confidence=float(emotion_result.confidence),
             alpha=float(features["alpha"]),
@@ -251,7 +263,10 @@ def _build_stream_message(
             theta=float(features["theta"]),
             gamma=float(features["gamma"]),
             delta=float(features["delta"]),
-        ),
+        )),
+        # Explicit user selection (None = AI/auto).  Forwarded to clients so
+        # the frontend and Arduino know which pattern was user-requested.
+        "user_pattern_override": session_manager.get_user_pattern_override(),
     }
 
 

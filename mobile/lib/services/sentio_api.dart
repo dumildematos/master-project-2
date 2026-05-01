@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'storage_service.dart';
+import 'auth_service.dart' show getAuthToken;
 
 // ---------------------------------------------------------------------------
 // Models
@@ -74,18 +75,24 @@ const Map<String, Map<String, double>> kEmotionPresets = {
 };
 
 // ---------------------------------------------------------------------------
-// API helper
+// API helper — attaches JWT when available
 // ---------------------------------------------------------------------------
 Future<http.Response> _api(String path, {
   String method = 'GET',
   Map<String, dynamic>? body,
 }) async {
-  final base = await StorageService.resolveApiBaseUrl();
-  final uri  = Uri.parse('$base/api$path');
-  final headers = {'Content-Type': 'application/json'};
+  final base  = await StorageService.resolveApiBaseUrl();
+  final uri   = Uri.parse('$base/api$path');
+  final token = await getAuthToken();   // from auth_service.dart
+  final headers = <String, String>{
+    'Content-Type': 'application/json',
+    if (token != null) 'Authorization': 'Bearer $token',
+  };
   return switch (method) {
-    'POST' => http.post(uri, headers: headers, body: jsonEncode(body ?? {})),
-    _      => http.get(uri, headers: headers),
+    'POST'   => http.post(uri,   headers: headers, body: jsonEncode(body ?? {})),
+    'PATCH'  => http.patch(uri,  headers: headers, body: jsonEncode(body ?? {})),
+    'DELETE' => http.delete(uri, headers: headers),
+    _        => http.get(uri,    headers: headers),
   };
 }
 
@@ -125,4 +132,15 @@ Future<void> postMobileBands(Map<String, double> payload) async {
     headers: {'Content-Type': 'application/json'},
     body: jsonEncode(payload),
   ).catchError((_) {}); // Non-fatal — keep buffering locally
+}
+
+/// Override the Arduino pattern type for the active session.
+/// Pass null to restore automatic AI/emotion-based selection.
+Future<void> selectPattern(String? patternType) async {
+  final res = await _api('/pattern/select', method: 'POST', body: {
+    'pattern_type': patternType,
+  });
+  if (res.statusCode != 200) {
+    throw Exception('selectPattern failed (${res.statusCode})');
+  }
 }
