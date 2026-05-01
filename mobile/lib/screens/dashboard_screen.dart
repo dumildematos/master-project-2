@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/ble_provider.dart';
 import '../providers/sentio_provider.dart';
+import 'connect_device_screen.dart';
 import 'history_screen.dart';
 import 'led_display_screen.dart';
 import 'session_screen.dart';
@@ -105,11 +106,12 @@ class DashboardScreen extends StatelessWidget {
 
                 // ① Device Connection card
                 DeviceCard(
-                  muse2Connected: isConn,
-                  muse2Name: ble.connectedDevice?.name ?? 'Muse 2',
-                  muse2Battery: 90,
-                  hatConnected: true,   // TODO: wire to real hat BLE provider
-                  hatBattery: 80,
+                  museConnected: isConn,
+                  museName: ble.connectedDevice?.name ?? 'Muse 2',
+                  museBattery: ble.museBattery,
+                  hatConnected: ble.isHatConnected,
+                  hatName: ble.connectedHat?.platformName ?? 'SENTIO Hat',
+                  hatBattery: ble.hatBattery,
                 ),
                 const SizedBox(height: 16),
 
@@ -208,125 +210,176 @@ class GlassCard extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DeviceCard — Muse 2 + SENTIO Hat rows
+// DeviceCard — shows only connected devices; empty state if none
 // ══════════════════════════════════════════════════════════════════════════════
 class DeviceCard extends StatelessWidget {
-  final bool   muse2Connected;
-  final String muse2Name;
-  final int    muse2Battery;
-  final bool   hatConnected;
-  final int    hatBattery;
+  final bool    museConnected;
+  final String  museName;
+  final int?    museBattery;
+  final bool    hatConnected;
+  final String  hatName;
+  final int?    hatBattery;
 
   const DeviceCard({
     super.key,
-    required this.muse2Connected,
-    required this.muse2Name,
-    required this.muse2Battery,
+    required this.museConnected,
+    required this.museName,
+    required this.museBattery,
     required this.hatConnected,
+    required this.hatName,
     required this.hatBattery,
   });
 
   @override
   Widget build(BuildContext context) {
+    final rows = <Widget>[];
+
+    if (museConnected) {
+      rows.add(ConnectedDeviceRow(
+        image: const _MuseThumb(),
+        name: museName,
+        type: 'EEG Headband',
+        battery: museBattery,
+      ));
+    }
+
+    if (hatConnected) {
+      if (rows.isNotEmpty) {
+        rows.add(const Padding(
+          padding: EdgeInsets.symmetric(vertical: 10),
+          child: Divider(color: _kBorder, height: 1, thickness: 1),
+        ));
+      }
+      rows.add(ConnectedDeviceRow(
+        image: const _HatThumb(),
+        name: hatName,
+        type: 'Smart LED Hat',
+        battery: hatBattery,
+      ));
+    }
+
+    if (rows.isEmpty) {
+      return _DeviceEmptyState();
+    }
+
     return GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(children: [
-        _DeviceRow(
-          // TODO: replace with Image.asset('assets/images/muse.png') once available
-          image: const SizedBox(
-            width: 72, height: 54,
-            child: _MuseThumb(),
-          ),
-          name: muse2Name,
-          connected: muse2Connected,
-          battery: muse2Battery,
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 10),
-          child: Divider(
-            color: _kBorder,
-            height: 1,
-            thickness: 1,
-          ),
-        ),
-        _DeviceRow(
-          // TODO: replace with Image.asset('assets/images/muse.png') for hat once asset is added
-          image: const SizedBox(
-            width: 72, height: 54,
-            child: _HatThumb(),
-          ),
-          name: 'SENTIO Hat',
-          connected: hatConnected,
-          battery: hatBattery,
-        ),
-      ]),
+      child: Column(children: rows),
     );
   }
 }
 
-class _DeviceRow extends StatelessWidget {
+// ── Connected device row (always green — only rendered when connected) ─────────
+class ConnectedDeviceRow extends StatelessWidget {
   final Widget image;
   final String name;
-  final bool   connected;
-  final int    battery;
+  final String type;
+  final int?   battery;
 
-  const _DeviceRow({
+  const ConnectedDeviceRow({
+    super.key,
     required this.image,
     required this.name,
-    required this.connected,
-    required this.battery,
+    required this.type,
+    this.battery,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(children: [
-      // Device image
       ClipRRect(
         borderRadius: BorderRadius.circular(10),
-        child: image,
+        child: SizedBox(width: 72, height: 54, child: image),
       ),
       const SizedBox(width: 14),
 
-      // Name + status
       Expanded(child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(name, style: _pp(size: 15, weight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Text(type, style: _pp(size: 11, color: _kMuted)),
           const SizedBox(height: 4),
           Row(children: [
             Container(
               width: 7, height: 7,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                color: connected ? _kGreen : _kMuted,
+                color: _kGreen,
               ),
             ),
             const SizedBox(width: 5),
-            Text(
-              connected ? 'Connected' : 'Disconnected',
-              style: _pp(
-                size: 12,
-                color: connected ? _kGreen : _kMuted,
-                weight: FontWeight.w500,
-              ),
-            ),
+            Text('Connected',
+                style: _pp(size: 12, color: _kGreen, weight: FontWeight.w500)),
           ]),
         ],
       )),
 
-      // Battery: percentage then icon
-      Row(mainAxisSize: MainAxisSize.min, children: [
-        Text(
-          '$battery%',
-          style: _pp(size: 13, color: Colors.white, weight: FontWeight.w500),
-        ),
-        const SizedBox(width: 6),
-        SizedBox(
-          width: 28, height: 14,
-          child: CustomPaint(painter: _BatPainter(pct: battery)),
-        ),
-      ]),
+      if (battery != null)
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          Text('$battery%',
+              style: _pp(size: 13, color: Colors.white, weight: FontWeight.w500)),
+          const SizedBox(width: 6),
+          SizedBox(
+            width: 28, height: 14,
+            child: CustomPaint(painter: _BatPainter(pct: battery!)),
+          ),
+        ]),
     ]);
+  }
+}
+
+// ── Empty state — shown when no devices are connected ─────────────────────────
+class _DeviceEmptyState extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Column(
+        children: [
+          Container(
+            width: 56, height: 56,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _kCyan.withValues(alpha: 0.08),
+              border: Border.all(color: _kCyan.withValues(alpha: 0.20)),
+            ),
+            child: Icon(PhosphorIcons.bluetoothSlash(),
+                color: _kMuted, size: 26),
+          ),
+          const SizedBox(height: 14),
+          Text('No devices connected',
+              style: _pp(size: 15, weight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Text(
+            'Connect your Muse 2 and SENTIO Hat to begin.',
+            textAlign: TextAlign.center,
+            style: _pp(size: 12, color: _kMuted),
+          ),
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const ConnectDeviceScreen()),
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              decoration: BoxDecoration(
+                color: _kCyan.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _kCyan.withValues(alpha: 0.40)),
+              ),
+              child: Text('Connect Device',
+                  style: _pp(
+                      size: 13,
+                      color: _kCyan,
+                      weight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -724,45 +777,6 @@ class _LotusPainter extends CustomPainter {
   bool shouldRepaint(_LotusPainter o) => o.color != color;
 }
 
-// ── Muse 2 headband (improved stylised painter) ────────────────────────────────
-class _MusePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-
-    // Main arc (headband)
-    canvas.drawArc(
-      Rect.fromLTWH(w * 0.04, 0, w * 0.92, h * 1.1),
-      math.pi, math.pi, false,
-      Paint()
-        ..color = const Color(0xFF8A9EAE)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = w * 0.14
-        ..strokeCap = StrokeCap.round,
-    );
-
-    // Ear pods
-    final pod = Paint()..color = const Color(0xFF637383);
-    for (final x in [0.0, w * 0.83]) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, h * 0.42, w * 0.17, h * 0.42),
-          const Radius.circular(4)),
-        pod,
-      );
-    }
-
-    // Sensor dots
-    final dot = Paint()..color = const Color(0xFFB0C8D4);
-    for (final x in [w * 0.25, w * 0.50, w * 0.75]) {
-      canvas.drawCircle(Offset(x, h * 0.10), w * 0.040, dot);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
-
 class _MuseThumb extends StatelessWidget {
   const _MuseThumb();
 
@@ -796,7 +810,7 @@ class _HatThumb extends StatelessWidget {
   Widget build(BuildContext context) {
     // Try loading the real PNG, fall back to a stylised icon
     return Image.asset(
-      'assets/images/hat.png',
+      'assets/images/sentio-hat.png',
       width: 72,
       height: 54,
       fit: BoxFit.contain,

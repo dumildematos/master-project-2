@@ -3,111 +3,108 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
-import '../models/app_user.dart';
 import '../providers/auth_provider.dart';
+import '../theme/theme.dart';
 import 'settings_screen.dart';
 
-// ── Design tokens ──────────────────────────────────────────────────────────────
-const _kBgTop      = Color(0xFF02080D);
-const _kBgBottom   = Color(0xFF07131B);
-const _kCardBg     = Color(0xFF101820);
-const _kCardBorder = Color(0xFF1E2A33);
-const _kCyan       = Color(0xFF00D9FF);
-const _kGreen      = Color(0xFF18DFA3); // vibration toggle active
-const _kTextPri    = Color(0xFFFFFFFF);
-const _kTextSec    = Color(0xFF9AA6B2);
-const _kDivider    = Color(0xFF1A2530);
-const _kAvatarBg   = Color(0xFF0D2838); // dark teal avatar fill
-const _kCardRadius = 24.0;
+const _kAvatarBg = Color(0xFF091622);
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ProfileScreen
-// Lives inside MainShell's IndexedStack — the shell provides the bottom nav.
+// ProfileScreen — lives in MainShell IndexedStack (shell provides bottom nav)
 // ══════════════════════════════════════════════════════════════════════════════
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
-}
-
-class _ProfileScreenState extends State<ProfileScreen> {
-  bool _vibration = true;
-
-  @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [_kBgTop, _kBgBottom],
-          ),
+    final user    = context.watch<AuthProvider>().currentUser;
+    final name    = (user?.displayName.isNotEmpty == true)
+        ? user!.displayName
+        : 'Alex Johnson';
+    final email   = (user?.email.isNotEmpty == true)
+        ? user!.email
+        : 'alex.johnson@email.com';
+    final initial = user?.initials ?? 'A';
+
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [SentioColors.bgTop, SentioColors.bgBottom],
         ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _TopBar(
-                  onSettingsTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                  ),
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            _ProfileTopBar(onSettings: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            )),
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 28),
+                    _ProfileHero(
+                        name: name, email: email, initial: initial,
+                        photoUrl: user?.photoUrl),
+                    const SizedBox(height: 24),
+                    _StatsCard(),
+                    const SizedBox(height: 28),
+                    const _SectionTitle('ACCOUNT'),
+                    const SizedBox(height: 12),
+                    _AccountCard(),
+                    const SizedBox(height: 24),
+                    const _SectionTitle('CONNECTED ACCOUNTS'),
+                    const SizedBox(height: 12),
+                    _ConnectedAccountsCard(email: email),
+                    const SizedBox(height: 36),
+                  ],
                 ),
-                const SizedBox(height: 28),
-                ProfileHeader(user: user),
-                const SizedBox(height: 28),
-                // Preferences settings card
-                _PreferencesCard(
-                  vibration: _vibration,
-                  onVibrationChanged: (v) => setState(() => _vibration = v),
-                ),
-                const SizedBox(height: 16),
-                // About card
-                const AboutCard(),
-                const SizedBox(height: 40),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// _TopBar
-// ══════════════════════════════════════════════════════════════════════════════
-class _TopBar extends StatelessWidget {
-  final VoidCallback onSettingsTap;
-  const _TopBar({required this.onSettingsTap});
+// ── Top bar ───────────────────────────────────────────────────────────────────
+class _ProfileTopBar extends StatelessWidget {
+  final VoidCallback onSettings;
+  const _ProfileTopBar({required this.onSettings});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.fromLTRB(8, 14, 16, 0),
       child: Row(
         children: [
-          const SizedBox(width: 32), // balance the right gear icon width
+          const SizedBox(width: 40),
           Expanded(
             child: Text(
               'Profile',
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
-                color: _kTextPri,
+                color: SentioColors.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ),
           GestureDetector(
-            onTap: onSettingsTap,
+            onTap: onSettings,
             behavior: HitTestBehavior.opaque,
-            child: Icon(PhosphorIcons.gear(), color: _kTextSec, size: 24),
+            child: SizedBox(
+              width: 40, height: 40,
+              child: Icon(PhosphorIcons.gear(),
+                  color: SentioColors.cyan, size: 24),
+            ),
           ),
         ],
       ),
@@ -115,111 +112,93 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// GlassCard — reusable dark rounded card with soft shadow
-// ══════════════════════════════════════════════════════════════════════════════
-class GlassCard extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-  final double radius;
+// ── Hero section ──────────────────────────────────────────────────────────────
+class _ProfileHero extends StatelessWidget {
+  final String  name;
+  final String  email;
+  final String  initial;
+  final String? photoUrl;
 
-  const GlassCard({
-    super.key,
-    required this.child,
-    this.padding = const EdgeInsets.all(20),
-    this.radius = _kCardRadius,
+  const _ProfileHero({
+    required this.name,
+    required this.email,
+    required this.initial,
+    this.photoUrl,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: _kCardBg,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: _kCardBorder),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x28000000),
-            blurRadius: 14,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// ProfileHeader — avatar + name + email + provider row
-// ══════════════════════════════════════════════════════════════════════════════
-class ProfileHeader extends StatelessWidget {
-  final AppUser? user;
-
-  const ProfileHeader({super.key, required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    final displayName = user?.displayName ?? '';
-    final email       = user?.email ?? '';
-    final photoUrl    = user?.photoUrl;
-    final provider    = user?.provider ?? '';
-    final initial     = user?.initials ?? '?';
-
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Avatar — network photo or initial fallback
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: _kAvatarBg,
-            border: Border.all(color: _kCyan, width: 2.5),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: photoUrl != null && photoUrl.isNotEmpty
-              ? Image.network(
-                  photoUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _InitialAvatar(initial),
-                )
-              : _InitialAvatar(initial),
+        // Avatar + edit overlay
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 100, height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _kAvatarBg,
+                border: Border.all(color: SentioColors.cyan, width: 2.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: SentioColors.cyan.withValues(alpha: 0.28),
+                    blurRadius: 24,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: (photoUrl != null && photoUrl!.isNotEmpty)
+                  ? Image.network(photoUrl!, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _AvatarInitial(initial))
+                  : _AvatarInitial(initial),
+            ),
+            // Edit button
+            Positioned(
+              bottom: 2, right: 2,
+              child: Container(
+                width: 30, height: 30,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: SentioColors.cyan,
+                  border: Border.all(color: SentioColors.bgTop, width: 2),
+                ),
+                child: Icon(PhosphorIcons.pencilSimple(),
+                    color: SentioColors.bgTop, size: 14),
+              ),
+            ),
+          ],
         ),
         const SizedBox(width: 20),
-        // Name, email and provider badge
+        // Name / email / premium
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                displayName.isNotEmpty ? displayName : email,
+                name,
                 style: GoogleFonts.poppins(
-                  color: _kTextPri,
-                  fontSize: 22,
+                  color: SentioColors.textPrimary,
+                  fontSize: 20,
                   fontWeight: FontWeight.w700,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
                 email,
                 style: GoogleFonts.poppins(
-                  color: _kTextSec,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
+                  color: SentioColors.textSecondary,
+                  fontSize: 12,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              if (provider.isNotEmpty && provider != 'email') ...[
-                const SizedBox(height: 6),
-                _ProviderBadge(provider),
-              ],
+              const SizedBox(height: 10),
+              _PremiumBadge(),
             ],
           ),
         ),
@@ -228,184 +207,223 @@ class ProfileHeader extends StatelessWidget {
   }
 }
 
-class _InitialAvatar extends StatelessWidget {
+class _AvatarInitial extends StatelessWidget {
   final String initial;
-  const _InitialAvatar(this.initial);
+  const _AvatarInitial(this.initial);
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Text(
-          initial,
-          style: GoogleFonts.poppins(
-            color: _kTextPri,
-            fontSize: 28,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      );
+    child: Text(
+      initial,
+      style: GoogleFonts.poppins(
+        color: SentioColors.textPrimary,
+        fontSize: 36,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  );
 }
 
-class _ProviderBadge extends StatelessWidget {
-  final String provider;
-  const _ProviderBadge(this.provider);
+class _PremiumBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: SentioColors.cyan.withValues(alpha: 0.55)),
+      color: SentioColors.cyan.withValues(alpha: 0.10),
+    ),
+    child: Text(
+      'Premium',
+      style: GoogleFonts.poppins(
+        color: SentioColors.cyan,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+}
+
+// ── Stats card ────────────────────────────────────────────────────────────────
+class _StatsCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => _ProfileCard(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 20),
+    child: IntrinsicHeight(
+      child: Row(
+        children: [
+          Expanded(child: _StatCol(
+            icon: PhosphorIcons.calendarBlank(),
+            label: 'Member Since',
+            value: 'Jan 15, 2024',
+          )),
+          _VDiv(),
+          Expanded(child: _StatCol(
+            icon: PhosphorIcons.chartBar(),
+            label: 'Total Sessions',
+            value: '24',
+          )),
+          _VDiv(),
+          Expanded(child: _StatCol(
+            icon: PhosphorIcons.flame(),
+            label: 'Current Streak',
+            value: '7 days',
+          )),
+        ],
+      ),
+    ),
+  );
+}
+
+class _StatCol extends StatelessWidget {
+  final IconData icon;
+  final String   label;
+  final String   value;
+
+  const _StatCol({required this.icon, required this.label, required this.value});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-      decoration: BoxDecoration(
-        color: _kCyan.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _kCyan.withValues(alpha: 0.35)),
-      ),
-      child: Text(
-        provider[0].toUpperCase() + provider.substring(1),
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, color: SentioColors.cyan, size: 22),
+      const SizedBox(height: 8),
+      Text(
+        label,
+        textAlign: TextAlign.center,
         style: GoogleFonts.poppins(
-          color: _kCyan,
+          color: SentioColors.textSecondary,
           fontSize: 11,
-          fontWeight: FontWeight.w500,
         ),
       ),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// _PreferencesCard
-// ══════════════════════════════════════════════════════════════════════════════
-class _PreferencesCard extends StatelessWidget {
-  final bool vibration;
-  final ValueChanged<bool> onVibrationChanged;
-
-  const _PreferencesCard({
-    required this.vibration,
-    required this.onVibrationChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _CardTitle('Preferences'),
-          const SizedBox(height: 8),
-          PreferenceRow(
-            icon:     PhosphorIcons.slidersHorizontal(),
-            label:    'Sensitivity',
-            trailing: const _ValueChevron(value: 'Medium'),
-            onTap:    () {}, // TODO: open sensitivity picker
-          ),
-          const _RowDivider(),
-          PreferenceRow(
-            icon:     PhosphorIcons.clockCounterClockwise(),
-            label:    'Update Baseline',
-            trailing: const _ChevronIcon(),
-            onTap:    () {}, // TODO: trigger baseline recalibration
-          ),
-          const _RowDivider(),
-          PreferenceRow(
-            icon:     PhosphorIcons.percent(),
-            label:    'Units',
-            trailing: const _ValueChevron(value: '%'),
-            onTap:    () {}, // TODO: open units selector
-          ),
-          const _RowDivider(),
-          PreferenceRow(
-            icon:  PhosphorIcons.vibrate(),
-            label: 'Vibration',
-            trailing: Switch(
-              value:              vibration,
-              onChanged:          onVibrationChanged,
-              activeThumbColor:   _kGreen,
-              activeTrackColor:   _kGreen.withValues(alpha: 0.35),
-              inactiveTrackColor: _kCardBorder,
-              inactiveThumbColor: _kTextSec,
-            ),
-            onTap: () => onVibrationChanged(!vibration),
-          ),
-          const SizedBox(height: 4),
-        ],
+      const SizedBox(height: 4),
+      Text(
+        value,
+        textAlign: TextAlign.center,
+        style: GoogleFonts.poppins(
+          color: SentioColors.textPrimary,
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
       ),
-    );
-  }
+    ],
+  );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// AboutCard — device version info
-// ══════════════════════════════════════════════════════════════════════════════
-class AboutCard extends StatelessWidget {
-  const AboutCard({super.key});
-
+class _VDiv extends StatelessWidget {
   @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _CardTitle('About'),
-          const SizedBox(height: 8),
-          PreferenceRow(
-            icon:  PhosphorIcons.fileText(),
-            label: 'SENTIO Device',
-            trailing: Text(
-              'v1.0.0',
-              style: GoogleFonts.poppins(
-                color: _kTextSec,
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-            onTap: () {}, // TODO: open device info / firmware update
-          ),
-          const SizedBox(height: 4),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+    width: 1,
+    margin: const EdgeInsets.symmetric(horizontal: 4),
+    color: SentioColors.cardBorder,
+  );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PreferenceRow — single settings row with icon, label, and optional trailing
-// ══════════════════════════════════════════════════════════════════════════════
-class PreferenceRow extends StatelessWidget {
-  final IconData      icon;
-  final String        label;
-  final Widget?       trailing;
-  final VoidCallback? onTap;
+// ── Account card ──────────────────────────────────────────────────────────────
+class _AccountCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => _ProfileCard(
+    padding: EdgeInsets.zero,
+    child: Column(
+      children: [
+        _AccountTile(
+          icon: PhosphorIcons.user(),
+          label: 'Personal Information',
+          subtitle: 'Update your personal details',
+          onTap: () {},
+        ),
+        const _HDivider(),
+        _AccountTile(
+          icon: PhosphorIcons.shieldCheck(),
+          label: 'Security',
+          subtitle: 'Change password and security settings',
+          onTap: () {},
+        ),
+        const _HDivider(),
+        _AccountTile(
+          icon: PhosphorIcons.creditCard(),
+          label: 'Subscription',
+          subtitle: 'Manage your plan and billing',
+          trailing: _InlinePremiumBadge(),
+          onTap: () {},
+        ),
+        const _HDivider(),
+        _AccountTile(
+          icon: PhosphorIcons.downloadSimple(),
+          label: 'Data Export',
+          subtitle: 'Download your data and insights',
+          onTap: () {},
+          last: true,
+        ),
+      ],
+    ),
+  );
+}
 
-  const PreferenceRow({
-    super.key,
+class _AccountTile extends StatelessWidget {
+  final IconData icon;
+  final String   label;
+  final String   subtitle;
+  final Widget?  trailing;
+  final VoidCallback onTap;
+  final bool last;
+
+  const _AccountTile({
     required this.icon,
     required this.label,
+    required this.subtitle,
+    required this.onTap,
     this.trailing,
-    this.onTap,
+    this.last = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        height: 58,
+      borderRadius: BorderRadius.vertical(
+        top: const Radius.circular(24),
+        bottom: last ? const Radius.circular(24) : Radius.zero,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Icon(icon, color: _kTextSec, size: 22),
+            // Icon in rounded square
+            Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0A1724),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: SentioColors.cardBorder),
+              ),
+              child: Icon(icon, color: SentioColors.textSecondary, size: 20),
+            ),
             const SizedBox(width: 14),
             Expanded(
-              child: Text(
-                label,
-                style: GoogleFonts.poppins(
-                  color: _kTextPri,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w400,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: GoogleFonts.poppins(
+                    color: SentioColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  )),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: GoogleFonts.poppins(
+                    color: SentioColors.textSecondary,
+                    fontSize: 12,
+                  )),
+                ],
               ),
             ),
-            if (trailing != null) trailing!,
+            if (trailing != null) ...[
+              const SizedBox(width: 8),
+              trailing!,
+            ],
+            const SizedBox(width: 6),
+            Icon(PhosphorIcons.caretRight(),
+                color: SentioColors.textSecondary, size: 16),
           ],
         ),
       ),
@@ -413,156 +431,281 @@ class PreferenceRow extends StatelessWidget {
   }
 }
 
-// ── Private helpers ────────────────────────────────────────────────────────────
-
-class _CardTitle extends StatelessWidget {
-  final String text;
-  const _CardTitle(this.text);
-
+class _InlinePremiumBadge extends StatelessWidget {
   @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(12),
+      gradient: const LinearGradient(
+        colors: [SentioColors.cyan, SentioColors.purple],
+      ),
+    ),
+    child: Text(
+      'Premium',
       style: GoogleFonts.poppins(
-        color: _kTextPri,
-        fontSize: 15,
+        color: Colors.white,
+        fontSize: 10,
         fontWeight: FontWeight.w600,
       ),
-    );
-  }
+    ),
+  );
 }
 
-class _RowDivider extends StatelessWidget {
-  const _RowDivider();
+// ── Connected accounts card ───────────────────────────────────────────────────
+class _ConnectedAccountsCard extends StatelessWidget {
+  final String email;
+  const _ConnectedAccountsCard({required this.email});
 
   @override
-  Widget build(BuildContext context) {
-    return const Divider(
-      height: 1,
-      thickness: 0.5,
-      color: _kDivider,
-    );
-  }
-}
-
-class _ValueChevron extends StatelessWidget {
-  final String value;
-  const _ValueChevron({required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context) => _ProfileCard(
+    padding: EdgeInsets.zero,
+    child: Column(
       children: [
-        Text(
-          value,
-          style: GoogleFonts.poppins(color: _kTextSec, fontSize: 14),
+        _SocialTile(
+          logo: const _GoogleLogo(),
+          name: 'Google',
+          subtitle: email,
+          connected: true,
+          onTap: () {},
         ),
-        const SizedBox(width: 6),
-        Icon(PhosphorIcons.caretRight(), color: _kTextSec, size: 16),
+        const _HDivider(),
+        _SocialTile(
+          logo: const _AppleLogo(),
+          name: 'Apple',
+          subtitle: 'Not connected',
+          connected: false,
+          onTap: () {},
+        ),
+        const _HDivider(),
+        _SocialTile(
+          logo: const _FacebookLogo(),
+          name: 'Facebook',
+          subtitle: 'Not connected',
+          connected: false,
+          onTap: () {},
+          last: true,
+        ),
       ],
-    );
-  }
+    ),
+  );
 }
 
-class _ChevronIcon extends StatelessWidget {
-  const _ChevronIcon();
-
-  @override
-  Widget build(BuildContext context) =>
-      Icon(PhosphorIcons.caretRight(), color: _kTextSec, size: 16);
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// SentioBottomNavBar — reusable pill nav for standalone pushed screens.
-// ProfileScreen itself relies on MainShell's bottom nav (not rendered here).
-// ══════════════════════════════════════════════════════════════════════════════
-class SentioBottomNavBar extends StatelessWidget {
-  final int currentIndex;
-  final ValueChanged<int> onTap;
-
-  const SentioBottomNavBar({
-    super.key,
-    required this.currentIndex,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        decoration: BoxDecoration(
-          color: _kCardBg,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: _kCardBorder),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _NavItem(
-              icon:     PhosphorIcons.house(),
-              label:    'Home',
-              selected: currentIndex == 0,
-              onTap:    () => onTap(0),
-            ),
-            _NavItem(
-              icon:     PhosphorIcons.chartLine(),
-              label:    'History',
-              selected: currentIndex == 1,
-              onTap:    () => onTap(1),
-            ),
-            _NavItem(
-              icon:     PhosphorIcons.user(),
-              label:    'Profile',
-              selected: currentIndex == 2,
-              onTap:    () => onTap(2),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  final IconData     icon;
-  final String       label;
-  final bool         selected;
+class _SocialTile extends StatelessWidget {
+  final Widget       logo;
+  final String       name;
+  final String       subtitle;
+  final bool         connected;
   final VoidCallback onTap;
+  final bool         last;
 
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
+  const _SocialTile({
+    required this.logo,
+    required this.name,
+    required this.subtitle,
+    required this.connected,
     required this.onTap,
+    this.last = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final col = selected ? _kCyan : _kTextSec;
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
+      borderRadius: BorderRadius.vertical(
+        top: const Radius.circular(24),
+        bottom: last ? const Radius.circular(24) : Radius.zero,
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
           children: [
-            Icon(icon, color: col, size: 22),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                color: col,
-                fontSize: 10,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            SizedBox(width: 42, height: 42, child: logo),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: GoogleFonts.poppins(
+                    color: SentioColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  )),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.poppins(
+                      color: connected
+                          ? SentioColors.textSecondary
+                          : SentioColors.textMuted,
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
+            const SizedBox(width: 8),
+            connected ? const _ConnectedBadge() : _ConnectButton(onTap: onTap),
           ],
         ),
       ),
     );
   }
+}
+
+class _ConnectedBadge extends StatelessWidget {
+  const _ConnectedBadge();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: SentioColors.green.withValues(alpha: 0.45)),
+      color: SentioColors.green.withValues(alpha: 0.10),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.check_circle_rounded,
+            color: SentioColors.green, size: 13),
+        const SizedBox(width: 4),
+        Text('Connected', style: GoogleFonts.poppins(
+          color: SentioColors.green,
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        )),
+      ],
+    ),
+  );
+}
+
+class _ConnectButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ConnectButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: SentioColors.cardBorder),
+        color: const Color(0xFF0A1724),
+      ),
+      child: Text('Connect', style: GoogleFonts.poppins(
+        color: SentioColors.textPrimary,
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+      )),
+    ),
+  );
+}
+
+// ── Social logo widgets ───────────────────────────────────────────────────────
+class _GoogleLogo extends StatelessWidget {
+  const _GoogleLogo();
+
+  @override
+  Widget build(BuildContext context) => _LogoContainer(
+    child: Text('G', style: GoogleFonts.poppins(
+      color: const Color(0xFF4285F4),
+      fontSize: 22,
+      fontWeight: FontWeight.w700,
+    )),
+  );
+}
+
+class _AppleLogo extends StatelessWidget {
+  const _AppleLogo();
+
+  @override
+  Widget build(BuildContext context) => const _LogoContainer(
+    child: Icon(Icons.apple_rounded, color: Colors.white, size: 26),
+  );
+}
+
+class _FacebookLogo extends StatelessWidget {
+  const _FacebookLogo();
+
+  @override
+  Widget build(BuildContext context) => _LogoContainer(
+    child: Text('f', style: GoogleFonts.poppins(
+      color: const Color(0xFF1877F2),
+      fontSize: 26,
+      fontWeight: FontWeight.w700,
+    )),
+  );
+}
+
+class _LogoContainer extends StatelessWidget {
+  final Widget child;
+  const _LogoContainer({required this.child});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 42, height: 42,
+    decoration: BoxDecoration(
+      color: const Color(0xFF0A1724),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: SentioColors.cardBorder),
+    ),
+    child: Center(child: child),
+  );
+}
+
+// ── Shared helpers ────────────────────────────────────────────────────────────
+class _ProfileCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  const _ProfileCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: padding,
+    decoration: BoxDecoration(
+      color: SentioColors.card,
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: SentioColors.cardBorder),
+      boxShadow: const [
+        BoxShadow(color: Color(0x22000000), blurRadius: 12, offset: Offset(0, 4)),
+      ],
+    ),
+    child: child,
+  );
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String text;
+  const _SectionTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: GoogleFonts.poppins(
+      color: SentioColors.textSecondary,
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 1.2,
+    ),
+  );
+}
+
+class _HDivider extends StatelessWidget {
+  const _HDivider();
+
+  @override
+  Widget build(BuildContext context) => const Divider(
+    height: 1, thickness: 0.5,
+    color: SentioColors.cardBorder,
+    indent: 16, endIndent: 16,
+  );
 }

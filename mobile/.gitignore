@@ -34,7 +34,7 @@ yarn-error.*
 .env*.local
 
 .dart_tool
-
+.flutter-plugins-dependencies
 # typescript
 *.tsbuildinfo
 
