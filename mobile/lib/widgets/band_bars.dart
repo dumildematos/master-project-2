@@ -5,7 +5,7 @@ import '../theme/theme.dart';
 const _kBands = [
   ('alpha', 'ALPHA', kCyan,              '8–13 Hz'),
   ('beta',  'BETA',  kAmber,             '13–30 Hz'),
-  ('theta', 'THETA', kMagenta,           '4–8 Hz'),
+  ('theta', 'THETA', Color(0xFFDD22FF),   '4–8 Hz'),
   ('gamma', 'GAMMA', Color(0xFFF97316),  '30–100 Hz'),
   ('delta', 'DELTA', Color(0xFF8B5CF6),  '1–4 Hz'),
 ];

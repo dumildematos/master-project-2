@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/app_user.dart';
 import 'storage_service.dart';
 
 // ---------------------------------------------------------------------------
@@ -12,8 +14,8 @@ const _storage = FlutterSecureStorage(
   aOptions: AndroidOptions(encryptedSharedPreferences: true),
 );
 
-const _kTokenKey    = 'sentio_jwt';
-const _kUserKey     = 'sentio_user';
+const _kTokenKey = 'sentio_jwt';
+const _kLegacyUserKey = 'sentio_user'; // old secure-storage user key
 
 Future<void> saveAuthToken(String token) =>
     _storage.write(key: _kTokenKey, value: token);
@@ -22,49 +24,45 @@ Future<String?> getAuthToken() => _storage.read(key: _kTokenKey);
 
 Future<void> clearAuth() async {
   await _storage.delete(key: _kTokenKey);
-  await _storage.delete(key: _kUserKey);
+  await _storage.delete(key: _kLegacyUserKey);
+  await deleteUser();
 }
 
 // ---------------------------------------------------------------------------
-// Cached user model
+// User profile cache (SharedPreferences — non-sensitive)
 // ---------------------------------------------------------------------------
-class AuthUser {
-  final String  id;
-  final String  email;
-  final String? name;
-  final String? avatarUrl;
-  final String  provider;
+const _kUserPrefKey = 'sentio_cached_user';
 
-  const AuthUser({
-    required this.id,
-    required this.email,
-    this.name,
-    this.avatarUrl,
-    required this.provider,
-  });
+Future<void> saveUser(AppUser user) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(_kUserPrefKey, jsonEncode(user.toJson()));
+}
 
-  factory AuthUser.fromJson(Map<String, dynamic> j) => AuthUser(
-    id:        j['id']         as String,
-    email:     j['email']      as String,
-    name:      j['name']       as String?,
-    avatarUrl: j['avatar_url'] as String?,
-    provider:  j['provider']   as String? ?? 'email',
-  );
+Future<AppUser?> loadSavedUser() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kUserPrefKey);
+    if (raw == null) return null;
+    return AppUser.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+  } catch (_) {
+    return null;
+  }
+}
 
-  Map<String, dynamic> toJson() => {
-    'id': id, 'email': email, 'name': name,
-    'avatar_url': avatarUrl, 'provider': provider,
-  };
+Future<void> deleteUser() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.remove(_kUserPrefKey);
 }
 
 // ---------------------------------------------------------------------------
 // Google Sign-In instance
 // ---------------------------------------------------------------------------
 // serverClientId tells google_sign_in to request an ID token signed
-// for our backend (web client ID).  The resulting idToken is what we
-// send to POST /api/auth/google.
+// for our backend (web client ID). The resulting idToken is sent to
+// POST /api/auth/google.
 final _googleSignIn = GoogleSignIn(
-  serverClientId: '826283652661-rgafrpmdt2u37gqg6l4rtqbsdaq59egm.apps.googleusercontent.com',
+  serverClientId:
+      '826283652661-rgafrpmdt2u37gqg6l4rtqbsdaq59egm.apps.googleusercontent.com',
   scopes: ['email', 'profile'],
 );
 
@@ -72,37 +70,40 @@ final _googleSignIn = GoogleSignIn(
 // Auth Service
 // ---------------------------------------------------------------------------
 class AuthService {
-  // ── Email / password ────────────────────────────────────────────────────
+  // ── Email / password ──────────────────────────────────────────────────────
 
-  static Future<AuthUser> register({
+  static Future<AppUser> register({
     required String email,
     required String password,
     String? name,
   }) async {
     final res = await _post('/api/auth/register', {
-      'email': email, 'password': password, if (name != null) 'name': name,
+      'email': email,
+      'password': password,
+      if (name != null) 'name': name,
     });
     return _handleAuthResponse(res);
   }
 
-  static Future<AuthUser> login({
+  static Future<AppUser> login({
     required String email,
     required String password,
   }) async {
     final res = await _post('/api/auth/login', {
-      'email': email, 'password': password,
+      'email': email,
+      'password': password,
     });
     return _handleAuthResponse(res);
   }
 
-  // ── Google Sign-In ───────────────────────────────────────────────────────
+  // ── Google Sign-In ────────────────────────────────────────────────────────
 
-  static Future<AuthUser?> signInWithGoogle() async {
+  static Future<AppUser?> signInWithGoogle() async {
     try {
       final account = await _googleSignIn.signIn();
-      if (account == null) return null;   // user cancelled
+      if (account == null) return null; // user cancelled
 
-      final auth    = await account.authentication;
+      final auth = await account.authentication;
       final idToken = auth.idToken;
 
       if (idToken == null) {
@@ -122,18 +123,20 @@ class AuthService {
   }
 
   static Future<void> signOut() async {
-    await _googleSignIn.signOut();
+    try {
+      await _googleSignIn.signOut();
+    } catch (_) {}
     await clearAuth();
   }
 
-  // ── Token refresh ────────────────────────────────────────────────────────
+  // ── Token refresh ─────────────────────────────────────────────────────────
 
-  static Future<AuthUser?> refreshIfNeeded() async {
+  static Future<AppUser?> refreshIfNeeded() async {
     final token = await getAuthToken();
     if (token == null) return null;
     try {
       final base = await StorageService.getApiUrl();
-      final res  = await http.post(
+      final res = await http.post(
         Uri.parse('$base/api/auth/refresh'),
         headers: {
           'Content-Type': 'application/json',
@@ -147,26 +150,28 @@ class AuthService {
     return null;
   }
 
-  // ── Current user (from backend) ──────────────────────────────────────────
+  // ── Current user (from backend) ───────────────────────────────────────────
 
-  static Future<AuthUser?> fetchMe() async {
+  static Future<AppUser?> fetchMe() async {
     final token = await getAuthToken();
     if (token == null) return null;
     try {
       final base = await StorageService.getApiUrl();
-      final res  = await http.get(
+      final res = await http.get(
         Uri.parse('$base/api/auth/me'),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (res.statusCode == 200) {
-        return AuthUser.fromJson(
-            jsonDecode(res.body) as Map<String, dynamic>);
+        final user =
+            AppUser.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+        await saveUser(user);
+        return user;
       }
     } catch (_) {}
     return null;
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
   static Future<http.Response> _post(
     String path,
@@ -180,15 +185,21 @@ class AuthService {
     );
   }
 
-  static Future<AuthUser> _handleAuthResponse(http.Response res) async {
+  static Future<AppUser> _handleAuthResponse(http.Response res) async {
     if (res.statusCode != 200 && res.statusCode != 201) {
-      final detail = (jsonDecode(res.body) as Map?)?['detail'] ?? res.body;
+      final detail =
+          (jsonDecode(res.body) as Map?)?['detail'] ?? res.body;
       throw Exception(detail);
     }
-    final json  = jsonDecode(res.body) as Map<String, dynamic>;
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
     final token = json['access_token'] as String;
-    final user  = AuthUser.fromJson(json['user'] as Map<String, dynamic>);
+    // Merge access_token into the user json so AppUser.fromJson can store it
+    final userJson =
+        Map<String, dynamic>.from(json['user'] as Map<String, dynamic>)
+          ..['access_token'] = token;
+    final user = AppUser.fromJson(userJson);
     await saveAuthToken(token);
+    await saveUser(user);
     return user;
   }
 }
