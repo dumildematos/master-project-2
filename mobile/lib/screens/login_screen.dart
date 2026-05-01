@@ -5,9 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import '../services/auth_service.dart';
+import '../providers/auth_provider.dart';
 import '../theme/theme.dart' show SentioColors;
 import 'main_shell.dart';
+import 'package:provider/provider.dart';
 
 // ── Palette (matches design spec exactly) ─────────────────────────────────────
 const _kBg     = Color(0xFF02080D);
@@ -57,7 +58,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     setState(() => _loading = true);
     try {
-      await AuthService.login(email: email, password: password);
+      await context.read<AuthProvider>().login(email: email, password: password);
       if (mounted) _goHome();
     } catch (e) {
       if (!mounted) return;
@@ -75,7 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     setState(() => _loading = true);
     try {
-      await AuthService.register(email: email, password: password);
+      await context.read<AuthProvider>().register(email: email, password: password);
       if (mounted) _goHome();
     } catch (e) {
       if (!mounted) return;
@@ -87,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _googleLogin() async {
     setState(() => _loading = true);
     try {
-      final user = await AuthService.signInWithGoogle();
+      final user = await context.read<AuthProvider>().loginWithGoogle();
       if (!mounted) return;
       if (user == null) { setState(() => _loading = false); return; }
       _goHome();

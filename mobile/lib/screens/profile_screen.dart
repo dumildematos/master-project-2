@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:provider/provider.dart';
 
+import '../models/app_user.dart';
+import '../providers/auth_provider.dart';
 import 'settings_screen.dart';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
@@ -33,7 +36,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // TODO: load name/email/avatar from AuthService or a UserProvider
+    final user = context.watch<AuthProvider>().currentUser;
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -56,8 +59,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 28),
-                // User section — row layout as shown in the reference screenshot
-                const ProfileHeader(name: 'Alex', email: 'alex@email.com'),
+                ProfileHeader(user: user),
                 const SizedBox(height: 28),
                 // Preferences settings card
                 _PreferencesCard(
@@ -151,27 +153,25 @@ class GlassCard extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ProfileHeader — avatar + name + email row
+// ProfileHeader — avatar + name + email + provider row
 // ══════════════════════════════════════════════════════════════════════════════
 class ProfileHeader extends StatelessWidget {
-  // TODO: replace with AuthUser from AuthService once user session is available
-  final String name;
-  final String email;
+  final AppUser? user;
 
-  const ProfileHeader({
-    super.key,
-    required this.name,
-    required this.email,
-  });
+  const ProfileHeader({super.key, required this.user});
 
   @override
   Widget build(BuildContext context) {
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final displayName = user?.displayName ?? '';
+    final email       = user?.email ?? '';
+    final photoUrl    = user?.photoUrl;
+    final provider    = user?.provider ?? '';
+    final initial     = user?.initials ?? '?';
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Circular avatar with cyan ring
+        // Avatar — network photo or initial fallback
         Container(
           width: 72,
           height: 72,
@@ -180,41 +180,92 @@ class ProfileHeader extends StatelessWidget {
             color: _kAvatarBg,
             border: Border.all(color: _kCyan, width: 2.5),
           ),
-          alignment: Alignment.center,
-          child: Text(
-            initial,
-            style: GoogleFonts.poppins(
-              color: _kTextPri,
-              fontSize: 30,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          clipBehavior: Clip.antiAlias,
+          child: photoUrl != null && photoUrl.isNotEmpty
+              ? Image.network(
+                  photoUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _InitialAvatar(initial),
+                )
+              : _InitialAvatar(initial),
         ),
         const SizedBox(width: 20),
-        // Name and email
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              name,
-              style: GoogleFonts.poppins(
-                color: _kTextPri,
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
+        // Name, email and provider badge
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                displayName.isNotEmpty ? displayName : email,
+                style: GoogleFonts.poppins(
+                  color: _kTextPri,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              email,
-              style: GoogleFonts.poppins(
-                color: _kTextSec,
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
+              const SizedBox(height: 2),
+              Text(
+                email,
+                style: GoogleFonts.poppins(
+                  color: _kTextSec,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ],
+              if (provider.isNotEmpty && provider != 'email') ...[
+                const SizedBox(height: 6),
+                _ProviderBadge(provider),
+              ],
+            ],
+          ),
         ),
       ],
+    );
+  }
+}
+
+class _InitialAvatar extends StatelessWidget {
+  final String initial;
+  const _InitialAvatar(this.initial);
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Text(
+          initial,
+          style: GoogleFonts.poppins(
+            color: _kTextPri,
+            fontSize: 28,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
+}
+
+class _ProviderBadge extends StatelessWidget {
+  final String provider;
+  const _ProviderBadge(this.provider);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: _kCyan.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kCyan.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        provider[0].toUpperCase() + provider.substring(1),
+        style: GoogleFonts.poppins(
+          color: _kCyan,
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
     );
   }
 }
