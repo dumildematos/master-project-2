@@ -10,6 +10,9 @@ from api.routes import router as api_router
 from api.websocket import router as ws_router
 from api.auth import router as auth_router
 from api.users import router as users_router
+from api.sessions_lifecycle import router as sessions_router
+from api.dashboard import router as dashboard_router
+from api.statistics import router as statistics_router
 from config import settings
 
 if not logging.getLogger().handlers:
@@ -53,8 +56,9 @@ def _seed_default_user() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """Create DB tables on startup (idempotent)."""
-    from database import create_tables
+    from database import create_tables, migrate_database
     create_tables()
+    migrate_database()
     logger.info("Database tables ready")
     if settings.debug and settings.seed_default_user:
         _seed_default_user()
@@ -111,9 +115,12 @@ async def log_api_requests(request: Request, call_next):
 # -----------------------------
 # Include routers
 # -----------------------------
-app.include_router(api_router,   prefix="/api")
-app.include_router(auth_router,  prefix="/api/auth",  tags=["auth"])
-app.include_router(users_router, prefix="/api/users", tags=["users"])
+app.include_router(api_router,        prefix="/api")
+app.include_router(auth_router,       prefix="/api/auth",  tags=["auth"])
+app.include_router(users_router,      prefix="/api/users", tags=["users"])
+app.include_router(sessions_router,   prefix="/api",       tags=["sessions"])
+app.include_router(dashboard_router,  prefix="/api",       tags=["dashboard"])
+app.include_router(statistics_router, prefix="/api",       tags=["statistics"])
 app.include_router(ws_router)
 
 # -----------------------------

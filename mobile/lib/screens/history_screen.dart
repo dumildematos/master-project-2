@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/sentio_provider.dart';
+import '../providers/session_provider.dart';
 import 'statistics_screen.dart';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
@@ -19,33 +19,46 @@ const _kTextPri    = Color(0xFFFFFFFF);
 const _kTextSec    = Color(0xFF9AA6B2);
 const _kCardRadius = 20.0;
 
-// ── Session data model (private to this file) ──────────────────────────────────
-// TODO: replace with a real SessionRecord model fetched from the backend API
-class _SessionData {
-  final String   date;
-  final String   title;
-  final String   duration;
-  final int      score;
-  final IconData icon;
-  final Color    iconColor;
+const _kRangeOptions = ['day', 'week', 'month'];
+const _kRangeLabels  = {'day': 'Today', 'week': 'This Week', 'month': 'This Month'};
 
-  const _SessionData({
-    required this.date,
-    required this.title,
-    required this.duration,
-    required this.score,
-    required this.icon,
-    required this.iconColor,
-  });
+String _fmtDuration(int? secs) {
+  if (secs == null || secs == 0) return '—';
+  final h = secs ~/ 3600;
+  final m = (secs % 3600) ~/ 60;
+  if (h > 0) return '${h}h ${m}m';
+  return '${m}m';
 }
 
-const _kFilterOptions = [
-  'All Sessions',
-  'Meditation',
-  'Focus Work',
-  'Relax',
-  'Study',
-];
+String _fmtDate(String iso) {
+  try {
+    final d = DateTime.parse(iso).toLocal();
+    const months = ['Jan','Feb','Mar','Apr','May','Jun',
+                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[d.month - 1]} ${d.day}, ${d.year}';
+  } catch (_) {
+    return iso;
+  }
+}
+
+IconData _iconForState(String? state) {
+  switch (state?.toLowerCase()) {
+    case 'focused':  return PhosphorIcons.crosshair();
+    case 'stressed': return PhosphorIcons.atom();
+    case 'excited':  return PhosphorIcons.lightning();
+    default:         return PhosphorIcons.flowerLotus();
+  }
+}
+
+Color _colorForState(String? state) {
+  switch (state?.toLowerCase()) {
+    case 'focused':  return _kGreen;
+    case 'stressed': return const Color(0xFFFF5252);
+    case 'excited':  return _kYellow;
+    case 'relaxed':  return _kPurple;
+    default:         return _kCyan;
+  }
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // HistoryScreen
@@ -59,45 +72,61 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  String _filter = 'All Sessions';
-
-  // TODO: load real session history from SentioApi / local database
-  late final List<_SessionData> _sessions;
+  String _range = 'week';
 
   @override
   void initState() {
     super.initState();
-    _sessions = [
-      _SessionData(
-        date: 'May 12, 2024', title: 'Meditation',
-        duration: '4h 32m',   score: 72,
-        icon: PhosphorIcons.target(),
-        iconColor: _kPurple,
-      ),
-      _SessionData(
-        date: 'May 11, 2024', title: 'Focus Work',
-        duration: '2h 15m',   score: 68,
-        icon: PhosphorIcons.crosshair(),
-        iconColor: _kGreen,
-      ),
-      _SessionData(
-        date: 'May 10, 2024', title: 'Relax',
-        duration: '1h 10m',   score: 75,
-        icon: PhosphorIcons.flowerLotus(),
-        iconColor: _kPurple,
-      ),
-      _SessionData(
-        date: 'May 9, 2024', title: 'Study',
-        duration: '3h 05m',  score: 65,
-        icon: PhosphorIcons.lightning(),
-        iconColor: _kYellow,
-      ),
-    ];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<SessionProvider>().fetchHistory(_range);
+    });
   }
 
-  List<_SessionData> get _filtered => _filter == 'All Sessions'
-      ? _sessions
-      : _sessions.where((s) => s.title == _filter).toList();
+  Future<void> _confirmDelete(String sessionId) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: _kCardBg,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Text('Delete this session permanently?',
+                style: GoogleFonts.poppins(
+                    color: _kTextPri, fontSize: 16, fontWeight: FontWeight.w600)),
+            content: Text('This action cannot be undone.',
+                style: GoogleFonts.poppins(color: _kTextSec, fontSize: 13)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Cancel',
+                    style: GoogleFonts.poppins(color: _kTextSec, fontSize: 14)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text('Delete',
+                    style: GoogleFonts.poppins(
+                        color: const Color(0xFFFF3B4A),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed || !mounted) return;
+
+    final session = context.read<SessionProvider>();
+    try {
+      await session.deleteSession(sessionId);
+      session.fetchDashboardSummary();
+      session.fetchStats(_range);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to delete session')),
+        );
+      }
+    }
+  }
 
   void _openFilter() {
     showModalBottomSheet<void>(
@@ -107,10 +136,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) => _FilterSheet(
-        current: _filter,
-        options: _kFilterOptions,
-        onSelect: (v) {
-          setState(() => _filter = v);
+        current: _kRangeLabels[_range]!,
+        options: _kRangeLabels.values.toList(),
+        onSelect: (label) {
+          final newRange = _kRangeOptions[_kRangeLabels.values.toList().indexOf(label)];
+          setState(() => _range = newRange);
+          context.read<SessionProvider>().fetchHistory(newRange);
           Navigator.pop(ctx);
         },
       ),
@@ -119,7 +150,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    context.watch<SentioProvider>(); // rebuild when live EEG data updates
+    final session = context.watch<SessionProvider>();
+    final items   = session.history;
 
     return Scaffold(
       body: Container(
@@ -139,31 +171,37 @@ class _HistoryScreenState extends State<HistoryScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: HistoryFilterDropdown(
-                  value: _filter,
+                  value: _kRangeLabels[_range]!,
                   onTap: _openFilter,
                 ),
               ),
               const SizedBox(height: 16),
               Expanded(
-                child: ListView.separated(
+                child: session.isLoading
+                    ? const Center(child: CircularProgressIndicator(color: _kCyan))
+                    : items.isEmpty
+                        ? Center(child: Text('No sessions yet',
+                            style: GoogleFonts.poppins(color: _kTextSec, fontSize: 14)))
+                        : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                  itemCount: _filtered.length,
+                  itemCount: items.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (_, i) {
-                    final s = _filtered[i];
+                    final s = items[i];
                     return SessionHistoryCard(
-                      date:      s.date,
-                      title:     s.title,
-                      duration:  s.duration,
-                      score:     s.score,
-                      icon:      s.icon,
-                      iconColor: s.iconColor,
+                      date:      _fmtDate(s.startedAt),
+                      title:     s.title ?? s.dominantState ?? 'Session',
+                      duration:  _fmtDuration(s.durationSeconds),
+                      score:     ((s.averageConfidence ?? 0) * 100).round(),
+                      icon:      _iconForState(s.dominantState),
+                      iconColor: _colorForState(s.dominantState),
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => const StatisticsScreen(),
                         ),
                       ),
+                      onDelete: () => _confirmDelete(s.sessionId),
                     );
                   },
                 ),
@@ -237,10 +275,15 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 14, 20, 0),
+      padding: const EdgeInsets.fromLTRB(8, 14, 20, 0),
       child: Row(
         children: [
-          const SizedBox(width: 32), // balance for the right icon
+          IconButton(
+            icon: Icon(PhosphorIcons.arrowLeft(), color: _kTextPri, size: 22),
+            onPressed: () => Navigator.maybePop(context),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
           Expanded(
             child: Text(
               'History',
@@ -346,6 +389,7 @@ class SessionHistoryCard extends StatelessWidget {
   final IconData icon;
   final Color    iconColor;
   final VoidCallback? onTap;
+  final VoidCallback? onDelete;
 
   const SessionHistoryCard({
     super.key,
@@ -356,6 +400,7 @@ class SessionHistoryCard extends StatelessWidget {
     required this.icon,
     required this.iconColor,
     this.onTap,
+    this.onDelete,
   });
 
   @override
@@ -374,54 +419,50 @@ class SessionHistoryCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Large session icon — no background, stroke style via Phosphor
             Icon(icon, color: iconColor, size: 54),
             const SizedBox(width: 18),
 
-            // Date / title / duration
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    date,
-                    style: GoogleFonts.poppins(
-                      color: _kTextSec,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
+                  Text(date,
+                      style: GoogleFonts.poppins(
+                          color: _kTextSec, fontSize: 12, fontWeight: FontWeight.w400)),
                   const SizedBox(height: 2),
-                  Text(
-                    title,
-                    style: GoogleFonts.poppins(
-                      color: _kCyan,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  Text(title,
+                      style: GoogleFonts.poppins(
+                          color: _kCyan, fontSize: 16, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
-                  Text(
-                    duration,
-                    style: GoogleFonts.poppins(
-                      color: _kTextPri,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  Text(duration,
+                      style: GoogleFonts.poppins(
+                          color: _kTextPri, fontSize: 15, fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
 
-            // Score — always bright green as per design
-            Text(
-              '$score%',
-              style: GoogleFonts.poppins(
-                color: _kGreen,
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
+            Text('$score%',
+                style: GoogleFonts.poppins(
+                    color: _kGreen, fontSize: 22, fontWeight: FontWeight.w700)),
+
+            if (onDelete != null) ...[
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: onDelete,
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFFF3B4A).withValues(alpha: 0.10),
+                    border: Border.all(
+                        color: const Color(0xFFFF3B4A).withValues(alpha: 0.35)),
+                  ),
+                  child: Icon(PhosphorIcons.trash(),
+                      color: const Color(0xFFFF3B4A), size: 16),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),

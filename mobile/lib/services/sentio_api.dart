@@ -131,7 +131,7 @@ Future<void> postMobileBands(Map<String, double> payload) async {
     Uri.parse('$base/api/eeg/mobile-bands'),
     headers: {'Content-Type': 'application/json'},
     body: jsonEncode(payload),
-  ).catchError((_) {}); // Non-fatal — keep buffering locally
+  ).catchError((Object _) => http.Response('', 0)); // Non-fatal — keep buffering locally
 }
 
 /// Override the Arduino pattern type for the active session.
@@ -143,4 +143,57 @@ Future<void> selectPattern(String? patternType) async {
   if (res.statusCode != 200) {
     throw Exception('selectPattern failed (${res.statusCode})');
   }
+}
+
+// ---------------------------------------------------------------------------
+// Session recording lifecycle
+// ---------------------------------------------------------------------------
+
+Future<Map<String, dynamic>> startSessionRecord(String? title) async {
+  final res = await _api('/sessions/start', method: 'POST', body: {
+    if (title != null) 'title': title,
+  });
+  if (res.statusCode != 201) throw Exception('Start session record ${res.statusCode}');
+  return jsonDecode(res.body) as Map<String, dynamic>;
+}
+
+Future<Map<String, dynamic>> endSessionRecord(String sessionId) async {
+  final res = await _api('/sessions/$sessionId/end', method: 'POST');
+  if (res.statusCode != 200) throw Exception('End session record ${res.statusCode}');
+  return jsonDecode(res.body) as Map<String, dynamic>;
+}
+
+Future<Map<String, dynamic>> getDashboardSummary() async {
+  final res = await _api('/dashboard/summary');
+  if (res.statusCode != 200) throw Exception('Dashboard summary ${res.statusCode}');
+  return jsonDecode(res.body) as Map<String, dynamic>;
+}
+
+Future<List<dynamic>> getSessionHistory(String range) async {
+  final res = await _api('/sessions/history?range=$range');
+  if (res.statusCode != 200) throw Exception('Session history ${res.statusCode}');
+  return jsonDecode(res.body) as List<dynamic>;
+}
+
+Future<Map<String, dynamic>> getStats(String range) async {
+  final res = await _api('/stats?range=$range');
+  if (res.statusCode != 200) throw Exception('Stats ${res.statusCode}');
+  return jsonDecode(res.body) as Map<String, dynamic>;
+}
+
+Future<List<dynamic>> getSessionTimeline(String sessionId) async {
+  final res = await _api('/sessions/$sessionId/timeline');
+  if (res.statusCode != 200) throw Exception('Session timeline ${res.statusCode}');
+  return jsonDecode(res.body) as List<dynamic>;
+}
+
+Future<Map<String, dynamic>> stopSessionRecord(String sessionId) async {
+  final res = await _api('/sessions/$sessionId/stop', method: 'POST');
+  if (res.statusCode != 200) throw Exception('Stop session ${res.statusCode}');
+  return jsonDecode(res.body) as Map<String, dynamic>;
+}
+
+Future<void> deleteSessionRecord(String sessionId) async {
+  final res = await _api('/sessions/$sessionId', method: 'DELETE');
+  if (res.statusCode != 200) throw Exception('Delete session ${res.statusCode}');
 }

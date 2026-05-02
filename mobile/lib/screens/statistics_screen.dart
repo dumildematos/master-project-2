@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../models/sentio_state.dart';
 import '../providers/sentio_provider.dart';
+import '../providers/session_provider.dart';
 import '../theme/theme.dart';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
@@ -75,49 +76,71 @@ class StatisticsScreen extends StatefulWidget {
 }
 
 class _StatisticsScreenState extends State<StatisticsScreen> {
-  int _period = 1; // 0=Day  1=Week  2=Month — default matches screenshot
-  int _offset = 0; // navigation offset within the selected period
+  int _period = 1; // 0=Day  1=Week  2=Month
+  int _offset = 0;
 
-  // ── Date label ───────────────────────────────────────────────────────────────
+  static const _rangeNames = ['day', 'week', 'month'];
+  static const _barColorPairs = [
+    (Color(0xFF43F26B), Color(0xFF00BFA0)),
+    (Color(0xFF00D9FF), Color(0xFF009ABE)),
+    (Color(0xFF2DA8FF), Color(0xFF1A7ACC)),
+    (Color(0xFF3898FF), Color(0xFF2060CC)),
+    (Color(0xFF5580FF), Color(0xFF3350CC)),
+    (Color(0xFF7B2CFF), Color(0xFF5518CC)),
+    (Color(0xFF7B2CFF), Color(0xFF4D10BB)),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<SessionProvider>().fetchStats(_rangeNames[_period]);
+    });
+  }
+
   String _fmtShort(DateTime d) => '${_kMonths[d.month - 1]} ${d.day}';
 
   String get _dateLabel {
-    // Reference anchor: the screenshot shows May 6–12 2024 for Week, offset 0
+    final now = DateTime.now();
     switch (_period) {
-      case 0: // Day — navigate by single days
-        final day = DateTime(2024, 5, 12).add(Duration(days: _offset));
+      case 0:
+        final day = now.add(Duration(days: _offset));
         return '${_kMonths[day.month - 1]} ${day.day}, ${day.year}';
-      case 2: // Month — navigate by calendar months
-        final base    = DateTime(2024, 5 + _offset);
+      case 2:
+        final base = DateTime(now.year, now.month + _offset);
         return '${_kMonths[base.month - 1]} ${base.year}';
-      default: // Week — navigate by 7-day blocks
-        final mon = DateTime(2024, 5, 6).add(Duration(days: _offset * 7));
+      default:
+        final mon = now
+            .subtract(Duration(days: now.weekday - 1))
+            .add(Duration(days: _offset * 7));
         final sun = mon.add(const Duration(days: 6));
         return '${_fmtShort(mon)} - ${_fmtShort(sun)}, ${sun.year}';
     }
   }
 
-  List<BarEntry> get _bars {
-    switch (_period) {
-      case 0:  return _dayBars;
-      case 2:  return _monthBars;
-      default: return _weekBars;
+  List<BarEntry> _barsFromProvider(SessionProvider session) {
+    final stats = session.statsSummary;
+    if (stats == null || stats.chartData.isEmpty) {
+      return switch (_period) {
+        0 => _dayBars,
+        2 => _monthBars,
+        _ => _weekBars,
+      };
     }
-  }
-
-  // TODO: derive focusTime / changeStr from real backend aggregates
-  ({String time, String change, bool positive}) get _summary {
-    switch (_period) {
-      case 0:  return (time: '4h 32m',  change: '+18% from previous day',   positive: true);
-      case 2:  return (time: '72h 10m', change: '-3% from previous month',  positive: false);
-      default: return (time: '4h 32m',  change: '+18% from previous week',  positive: true);
-    }
+    return List.generate(stats.chartData.length, (i) {
+      final pt = stats.chartData[i];
+      final c  = _barColorPairs[i % _barColorPairs.length];
+      return BarEntry(pt.label, pt.value, c.$1, c.$2);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final session     = context.watch<SessionProvider>();
     final emotionHist = context.watch<SentioProvider>().emotionHistory;
-    final s = _summary;
+    final stats       = session.statsSummary;
+    final bars        = _barsFromProvider(session);
+    final focusTime   = stats?.focusTimeStr ?? '0m';
 
     return Scaffold(
       body: Container(
@@ -140,10 +163,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                       const SizedBox(height: 8),
                       SegmentedTimeSelector(
                         selectedIndex: _period,
-                        onChanged: (i) => setState(() {
-                          _period = i;
-                          _offset = 0; // reset nav when switching period
-                        }),
+                        onChanged: (i) {
+                          setState(() { _period = i; _offset = 0; });
+                          context.read<SessionProvider>().fetchStats(_rangeNames[i]);
+                        },
                       ),
                       const SizedBox(height: 16),
                       _DateNavRow(
@@ -153,22 +176,23 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                       ),
                       const SizedBox(height: 14),
                       FocusTimeChartCard(
-                        focusTime: s.time,
-                        changeStr: s.change,
-                        positive:  s.positive,
-                        bars:      _bars,
+                        focusTime: focusTime,
+                        changeStr: '',
+                        positive:  true,
+                        bars:      bars,
                       ),
                       const SizedBox(height: 14),
-                      // TODO: derive TopStatesCard data from backend session history
-                      TopStatesCard(emotionHistory: emotionHist),
+                      stats != null
+                          ? TopStatesCard(stateBreakdown: stats.stateBreakdown)
+                          : TopStatesCard(emotionHistory: emotionHist),
                       const SizedBox(height: 20),
                     ],
                   ),
                 ),
               ),
               SentioBottomNavBar(
-                currentIndex: 1, // History tab active
-                onTap: (_) {}, // navigation handled by MainShell
+                currentIndex: 1,
+                onTap: (_) {},
               ),
             ],
           ),
@@ -469,14 +493,26 @@ class FocusTimeChartCard extends StatelessWidget {
 // TopStatesCard
 // ══════════════════════════════════════════════════════════════════════════════
 class TopStatesCard extends StatelessWidget {
-  // TODO: compute from real aggregated session emotion data from backend
   final List<EmotionHistoryEntry> emotionHistory;
+  final Map<String, double>? stateBreakdown;
 
-  const TopStatesCard({super.key, required this.emotionHistory});
+  const TopStatesCard({
+    super.key,
+    this.emotionHistory = const [],
+    this.stateBreakdown,
+  });
 
   List<StateData> _states() {
+    if (stateBreakdown != null && stateBreakdown!.values.any((v) => v > 0)) {
+      final sorted = stateBreakdown!.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      return sorted.take(4).map((e) => StateData(
+        emotionLabel(e.key),
+        e.value,
+        e.key,
+      )).toList();
+    }
     if (emotionHistory.isEmpty) {
-      // Demo data matching the screenshot
       return const [
         StateData('Focused',  0.65, 'focused'),
         StateData('Calm',     0.20, 'calm'),
