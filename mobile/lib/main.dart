@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/ble_provider.dart';
 import 'providers/sentio_provider.dart';
+import 'providers/session_provider.dart';
 import 'screens/login_screen.dart'; // LogoWidget (static, no animation)
 import 'screens/main_shell.dart';
 import 'screens/onboarding_screen.dart' hide LogoWidget;
@@ -24,6 +25,7 @@ class SentioRoot extends StatelessWidget {
         ChangeNotifierProvider<AuthProvider>(create: (_) => AuthProvider()),
         ChangeNotifierProvider<BleProvider>(create: (_) => BleProvider()),
         ChangeNotifierProvider<SentioProvider>(create: (_) => SentioProvider()),
+        ChangeNotifierProvider<SessionProvider>(create: (_) => SessionProvider()),
       ],
       child: MaterialApp(
         title: 'SENTIO',

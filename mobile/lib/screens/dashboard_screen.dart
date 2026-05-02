@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/ble_provider.dart';
 import '../providers/sentio_provider.dart';
+import '../providers/session_provider.dart';
 import 'connect_device_screen.dart';
 import 'history_screen.dart';
 import 'led_display_screen.dart';
@@ -27,6 +28,14 @@ const _kMagenta  = Color(0xFFCC44FF);
 const _kMuted    = Color(0xFF9AA6B2);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+String _fmtSeconds(int secs) {
+  final h = secs ~/ 3600;
+  final m = (secs % 3600) ~/ 60;
+  if (h > 0) return '${h}h ${m}m';
+  if (m > 0) return '${m}m';
+  return '0m';
+}
+
 String _emotionLabel(String e) => switch (e.toLowerCase()) {
   'calm'     => 'Calm',
   'relaxed'  => 'Relaxed',
@@ -63,8 +72,21 @@ TextStyle _pp({
 // ══════════════════════════════════════════════════════════════════════════════
 // DashboardScreen
 // ══════════════════════════════════════════════════════════════════════════════
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<SessionProvider>().fetchDashboardSummary();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,15 +95,16 @@ class DashboardScreen extends StatelessWidget {
       statusBarIconBrightness: Brightness.light,
     ));
 
-    final ble    = context.watch<BleProvider>();
-    final sentio = context.watch<SentioProvider>();
-    final isConn = ble.state == BLEState.connected;
+    final ble     = context.watch<BleProvider>();
+    final sentio  = context.watch<SentioProvider>();
+    final session = context.watch<SessionProvider>();
+    final isConn  = ble.state == BLEState.connected;
     final emotion = sentio.data.emotion.toLowerCase();
-    final hist    = sentio.emotionHistory;
 
-    // Derived summary values
-    final topEmotion = _topEmotion(hist);
-    final sessionCount = hist.isEmpty ? 3 : (hist.length ~/ 4).clamp(1, 99);
+    final dash = session.dashboardSummary;
+    final focusTime  = dash != null ? _fmtSeconds(dash.focusTimeToday) : '—';
+    final topState   = _emotionLabel(dash?.topStateToday ?? (sentio.emotionHistory.isEmpty ? 'focused' : _topEmotion(sentio.emotionHistory)));
+    final sessionCnt = dash != null ? '${dash.sessionsToday}' : '—';
 
     return Container(
       decoration: const BoxDecoration(
@@ -121,9 +144,9 @@ class DashboardScreen extends StatelessWidget {
 
                 // ③ Today's Summary card
                 SummaryCard(
-                  focusTime: '4h 32m',
-                  topState: _emotionLabel(topEmotion),
-                  sessions: '$sessionCount',
+                  focusTime: focusTime,
+                  topState:  topState,
+                  sessions:  sessionCnt,
                 ),
                 const SizedBox(height: 16),
 
@@ -624,8 +647,53 @@ class _QuickActionsCard extends StatelessWidget {
                 icon: Icon(PhosphorIcons.play(), color: _kCyan, size: 26),
                 label: 'Start\nSession',
                 accent: _kCyan,
-                onTap: () => Navigator.push(
-                  context, MaterialPageRoute(builder: (_) => const SessionScreen())),
+                onTap: () {
+                  final ble = context.read<BleProvider>();
+                  if (ble.state != BLEState.connected) {
+                    showDialog<void>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: _kCard,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20)),
+                        title: Text('No Device Connected',
+                            style: _pp(size: 17, weight: FontWeight.w600)),
+                        content: Text(
+                          'Connect your Muse 2 headband before starting a session.',
+                          style: _pp(size: 13, color: _kMuted),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: Text('Cancel',
+                                style: _pp(size: 14, color: _kMuted)),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const ConnectDeviceScreen()),
+                              );
+                            },
+                            child: Text('Connect',
+                                style: _pp(
+                                    size: 14,
+                                    color: _kCyan,
+                                    weight: FontWeight.w600)),
+                          ),
+                        ],
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SessionScreen()),
+                  );
+                },
               ),
               QuickActionItem(
                 icon: Icon(PhosphorIcons.dotsSixVertical(), color: _kMagenta, size: 26),

@@ -17,6 +17,7 @@ logger = logging.getLogger("sentio.stream")
 
 IDLE_BACKOFF_SECONDS = 0.02
 EMOTION_HISTORY_MAXLEN = 7
+_SAMPLE_SAVE_EVERY_N_FRAMES = 10  # ~2 Hz at 50 ms update interval
 EMOTION_RECENCY_MIN_STEP = 0.12
 EMOTION_RECENCY_MAX_STEP = 0.75
 EMOTION_OVERRIDE_CONFIDENCE_BASE = 0.72
@@ -415,6 +416,18 @@ def _process_stream_iteration(
     session_manager.set_latest_stream_message(message)
     frames_emitted += 1
     last_progress_log = _log_frame_progress(message, frames_emitted, last_progress_log)
+
+    if frames_emitted % _SAMPLE_SAVE_EVERY_N_FRAMES == 0:
+        db_session_id = session_manager.get_db_session_id()
+        if db_session_id:
+            from services import session_service
+            session_service.save_sample_from_stream(
+                db_session_id=db_session_id,
+                features=features,
+                emotion=emotion_result.emotion.value,
+                confidence=float(emotion_result.confidence),
+            )
+
     time.sleep(settings.eeg_update_interval)
     return (
         last_no_data_log,
@@ -525,6 +538,17 @@ def process_bands_from_mobile(features: dict) -> None:
         features, emotion_result, pattern_params, selected_pattern, stream_config, None
     )
     session_manager.set_latest_stream_message(message)
+
+    db_session_id = session_manager.get_db_session_id()
+    if db_session_id:
+        from services import session_service
+        session_service.save_sample_from_stream(
+            db_session_id=db_session_id,
+            features=features,
+            emotion=emotion_result.emotion.value,
+            confidence=float(emotion_result.confidence),
+        )
+
     logger.debug(
         "Mobile bands processed session_id=%s emotion=%s confidence=%.3f",
         session_manager.current_session_id,

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../models/sentio_state.dart';
 import '../providers/sentio_provider.dart';
+import '../providers/session_provider.dart';
 import '../services/sentio_api.dart' as api;
 import '../theme/theme.dart';
 
@@ -26,7 +27,8 @@ const _kCardRadius = 24.0;
 
 // ── Root screen ────────────────────────────────────────────────────────────────
 class SessionScreen extends StatefulWidget {
-  const SessionScreen({super.key});
+  final String? title;
+  const SessionScreen({super.key, this.title});
 
   @override
   State<SessionScreen> createState() => _SessionScreenState();
@@ -36,7 +38,7 @@ class _SessionScreenState extends State<SessionScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _anim;
   bool _running = true;
-  int  _seconds = 0; // TODO: seed from existing session if resuming
+  int  _seconds = 0;
 
   @override
   void initState() {
@@ -58,7 +60,7 @@ class _SessionScreenState extends State<SessionScreen>
   }
 
   Future<void> _startSession() async {
-    // TODO: connect to real Muse EEG device session via api.startSession()
+    final provider = context.read<SessionProvider>();
     try {
       await api.startSession(const api.SessionConfig(
         patternType:       'fluid',
@@ -67,12 +69,99 @@ class _SessionScreenState extends State<SessionScreen>
         deviceSource:      'mobile',
       ));
     } catch (_) {}
+    try {
+      await provider.startSession(widget.title);
+    } catch (_) {}
   }
 
   Future<void> _endSession() async {
+    final confirmed = await _showStopDialog();
+    if (!confirmed) return;
+    await _doStop();
+  }
+
+  Future<void> _doStop() async {
     setState(() => _running = false);
+    final provider = context.read<SessionProvider>();
     try { await api.stopSession(); } catch (_) {}
-    if (mounted) Navigator.pop(context);
+    Map<String, dynamic>? summary;
+    try { summary = await provider.stopSession(); } catch (_) {}
+    if (!mounted) return;
+    if (summary != null) {
+      _showSummaryDialog(summary);
+    } else {
+      Navigator.pop(context);
+    }
+  }
+
+  Future<bool> _showStopDialog() async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: _kCardBg,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Text('Stop this session?',
+                style: GoogleFonts.poppins(
+                    color: _kTextPri, fontSize: 17, fontWeight: FontWeight.w600)),
+            content: Text('Your session data will be saved.',
+                style: GoogleFonts.poppins(color: _kTextSec, fontSize: 14)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Cancel',
+                    style: GoogleFonts.poppins(color: _kTextSec, fontSize: 14)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text('Stop',
+                    style: GoogleFonts.poppins(
+                        color: _kAccentYell, fontSize: 14, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  void _showSummaryDialog(Map<String, dynamic> summary) {
+    final dur = summary['duration_seconds'] as int? ?? 0;
+    final h = dur ~/ 3600;
+    final m = (dur % 3600) ~/ 60;
+    final timeStr = h > 0 ? '${h}h ${m}m' : '${m}m';
+    final state = (summary['dominant_state'] as String? ?? 'neutral');
+    final conf  = ((summary['average_confidence'] as num? ?? 0) * 100).round();
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _kCardBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Session Complete',
+            style: GoogleFonts.poppins(
+                color: _kTextPri, fontSize: 17, fontWeight: FontWeight.w600)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SummaryRow('Duration',    timeStr),
+            _SummaryRow('Top State',   '${state[0].toUpperCase()}${state.substring(1)}'),
+            _SummaryRow('Confidence',  '$conf%'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pop(context);
+            },
+            child: Text('Done',
+                style: GoogleFonts.poppins(
+                    color: _kAccentCyan, fontSize: 14, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _togglePause() => setState(() => _running = !_running);
@@ -115,9 +204,10 @@ class _SessionScreenState extends State<SessionScreen>
                     children: [
                       // 1. Current Session card
                       SessionHeaderCard(
-                        timerStr:     _timerStr,
-                        isRunning:    _running,
+                        timerStr:      _timerStr,
+                        isRunning:     _running,
                         onPauseResume: _togglePause,
+                        sessionTitle:  widget.title,
                       ),
                       const SizedBox(height: 14),
 
@@ -135,9 +225,29 @@ class _SessionScreenState extends State<SessionScreen>
                       const SizedBox(height: 14),
 
                       // 4. Top States breakdown
-                      // TODO: derive percentages from sentio.emotionHistory when live
                       TopStatesCard(emotionHistory: emotionHist),
                       const SizedBox(height: 20),
+
+                      // 5. Stop Session button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _endSession,
+                          icon: Icon(PhosphorIcons.stop(), color: _kAccentYell, size: 18),
+                          label: Text('Stop Session',
+                              style: GoogleFonts.poppins(
+                                  color: _kAccentYell,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600)),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: const BorderSide(color: _kAccentYell, width: 1.5),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),
@@ -150,6 +260,30 @@ class _SessionScreenState extends State<SessionScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Summary row used inside the stop-session result dialog ────────────────────
+class _SummaryRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _SummaryRow(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: GoogleFonts.poppins(color: _kTextSec, fontSize: 13)),
+          Text(value,
+              style: GoogleFonts.poppins(
+                  color: _kTextPri, fontSize: 13, fontWeight: FontWeight.w600)),
+        ],
       ),
     );
   }
@@ -221,12 +355,14 @@ class SessionHeaderCard extends StatelessWidget {
   final String timerStr;
   final bool isRunning;
   final VoidCallback onPauseResume;
+  final String? sessionTitle;
 
   const SessionHeaderCard({
     super.key,
     required this.timerStr,
     required this.isRunning,
     required this.onPauseResume,
+    this.sessionTitle,
   });
 
   @override
@@ -248,7 +384,7 @@ class SessionHeaderCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Meditation', // TODO: pass session type from navigation args
+                  sessionTitle ?? 'Session',
                   style: GoogleFonts.poppins(
                     color: _kTextPri,
                     fontSize: 16,

@@ -34,6 +34,8 @@ class SessionManager:
         self.user_pattern_override: Optional[str] = None   # None = let AI decide
         self.arduino_status: Optional[Dict[str, Any]] = None
         self._arduino_lock = threading.Lock()
+        self._db_session_id: Optional[str] = None
+        self._db_session_lock = threading.Lock()
 
     def start_session(self, config: Dict[str, Any]) -> str:
         """
@@ -169,6 +171,20 @@ class SessionManager:
     def get_user_pattern_override(self) -> Optional[str]:
         with self._stream_lock:
             return self.user_pattern_override
+
+    # ── DB session tracking (links stream pipeline to recording session) ─────
+
+    def set_db_session_id(self, session_id: Optional[str]) -> None:
+        with self._db_session_lock:
+            self._db_session_id = session_id
+
+    def get_db_session_id(self) -> Optional[str]:
+        with self._db_session_lock:
+            return self._db_session_id
+
+    def clear_db_session_id(self) -> None:
+        with self._db_session_lock:
+            self._db_session_id = None
 
     # ── Arduino status reporting ──────────────────────────────────────────────
 
