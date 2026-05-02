@@ -4,14 +4,18 @@
 //  Effects tab : animated 8×8 LED preview + brightness / speed / mode controls.
 //  Customize tab: tap-to-paint editable matrix + full HSV colour picker.
 //
-//  Self-contained — no cross-screen imports.
-//  Packages: google_fonts, phosphor_flutter
+//  Packages: google_fonts, phosphor_flutter, provider
 // =============================================================================
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:provider/provider.dart';
+import '../models/led_config.dart';
+import '../providers/ble_provider.dart';
 
 // ─── Brand tokens ──────────────────────────────────────────────────────────────
 const _bg1     = Color(0xFF02080D);
@@ -133,11 +137,12 @@ class LedDisplayScreen extends StatefulWidget {
 
 class _State extends State<LedDisplayScreen>
     with SingleTickerProviderStateMixin {
-  int    _tab    = 0; // 0=Effects  1=Customize
-  String _mode   = 'Breathing';
-  double _bright = .80;
-  double _speed  = .60;
-  int    _nav    = 0;
+  int    _tab     = 0; // 0=Effects  1=Customize
+  String _mode    = 'Breathing';
+  double _bright  = .80;
+  double _speed   = .60;
+  int    _nav     = 0;
+  bool   _sending = false;
   late AnimationController _ctrl;
 
   // Customize tab
@@ -168,7 +173,54 @@ class _State extends State<LedDisplayScreen>
   }
 
   Future<void> _preview() async {
-    // TODO: send _mode, _bright, _speed, _matrix to ESP32/BLE
+    if (_sending) return;
+
+    final ble = context.read<BleProvider>();
+    if (!ble.isHatConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('No device connected', style: _pp(size: 13)),
+        backgroundColor: const Color(0xFFFF4D4D),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 2),
+      ));
+      return;
+    }
+
+    setState(() => _sending = true);
+    try {
+      final config = _tab == 0
+          ? LedConfig.fromEffects(mode: _mode, brightness: _bright, speed: _speed)
+          : LedConfig.fromCustom(matrix: _matrix, brightness: _bright, speed: _speed, mode: _mode);
+
+      await ble.sendHatPayload(jsonEncode(config.toJson()));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Sent to hat', style: _pp(size: 13)),
+          backgroundColor: const Color(0xFF00C48C),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 1),
+        ));
+      }
+    } catch (e) {
+      debugPrint('[Preview] $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            'Failed: ${e.toString().replaceAll('Exception: ', '')}',
+            style: _pp(size: 13),
+          ),
+          backgroundColor: const Color(0xFFFF4D4D),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 3),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   @override
@@ -237,7 +289,7 @@ class _State extends State<LedDisplayScreen>
             const SizedBox(height: 22),
             ModeDropdown(mode: _mode, modes: _modes, onPick: _setMode),
             const SizedBox(height: 28),
-            GradientButton(label: 'Preview', onTap: _preview),
+            GradientButton(label: 'Preview', onTap: _preview, loading: _sending),
           ],
         ),
       );
@@ -289,7 +341,7 @@ class _State extends State<LedDisplayScreen>
           const SizedBox(height: 22),
           ModeDropdown(mode: _mode, modes: _modes, onPick: _setMode),
           const SizedBox(height: 28),
-          GradientButton(label: 'Preview', onTap: _preview),
+          GradientButton(label: 'Preview', onTap: _preview, loading: _sending),
         ],
       );
 
@@ -596,11 +648,17 @@ class _ModeSheet extends StatelessWidget {
 class GradientButton extends StatelessWidget {
   final String       label;
   final VoidCallback onTap;
-  const GradientButton({super.key, required this.label, required this.onTap});
+  final bool         loading;
+  const GradientButton({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.loading = false,
+  });
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
+        onTap: loading ? null : onTap,
         child: Container(
           height: 58,
           width: double.infinity,
@@ -613,13 +671,17 @@ class GradientButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: _purple.withOpacity(.45),
+                color: _purple.withOpacity(loading ? .20 : .45),
                 blurRadius: 22, offset: const Offset(0, 7)),
             ],
           ),
           alignment: Alignment.center,
-          child: Text(label,
-              style: _pp(size: 17, weight: FontWeight.bold)),
+          child: loading
+              ? const SizedBox(
+                  width: 22, height: 22,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2.5, color: Colors.white))
+              : Text(label, style: _pp(size: 17, weight: FontWeight.bold)),
         ),
       );
 }

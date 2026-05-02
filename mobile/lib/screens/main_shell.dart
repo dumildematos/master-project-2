@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../providers/sentio_provider.dart';
+import '../providers/session_provider.dart';
 import 'dashboard_screen.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
@@ -19,13 +22,31 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   late int _index;
 
   @override
   void initState() {
     super.initState();
     _index = widget.initialIndex;
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<SessionProvider>().recoverActiveSession();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<SessionProvider>().recoverActiveSession();
+      context.read<SentioProvider>().reconnect();
+    }
   }
 
   static const _pages = [
