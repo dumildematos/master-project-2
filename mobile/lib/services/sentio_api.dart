@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'storage_service.dart';
 import 'auth_service.dart' show getAuthToken;
+import '../models/session_led_pattern.dart';
 
 // ---------------------------------------------------------------------------
 // Models
@@ -196,6 +197,18 @@ Future<Map<String, dynamic>> stopSessionRecord(String sessionId) async {
 Future<void> deleteSessionRecord(String sessionId) async {
   final res = await _api('/sessions/$sessionId', method: 'DELETE');
   if (res.statusCode != 200) throw Exception('Delete session ${res.statusCode}');
+}
+
+Future<ActiveSessionInfo> getActiveSession() async {
+  final res = await _api('/sessions/active');
+  if (res.statusCode != 200) throw Exception('Active session ${res.statusCode}');
+  return ActiveSessionInfo.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+}
+
+Future<SessionLedPattern> getSessionLatestPattern(String sessionId) async {
+  final res = await _api('/sessions/$sessionId/latest-pattern');
+  if (res.statusCode != 200) throw Exception('Latest pattern ${res.statusCode}');
+  return SessionLedPattern.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
 }
 
 // ---------------------------------------------------------------------------

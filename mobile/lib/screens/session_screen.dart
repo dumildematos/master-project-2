@@ -62,6 +62,11 @@ class _SessionScreenState extends State<SessionScreen>
 
   Future<void> _startSession() async {
     final provider = context.read<SessionProvider>();
+    if (provider.hasActiveSession) {
+      // Session already active (e.g. returned from background) — sync timer.
+      setState(() => _seconds = provider.sessionDuration);
+      return;
+    }
     try {
       await api.startSession(const api.SessionConfig(
         patternType:       'fluid',

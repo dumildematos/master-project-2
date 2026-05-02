@@ -12,7 +12,7 @@
 ///   Exposes: isScanning, discoveredDevices (List<ScannedDevice>),
 ///            connectedMuse, connectedHat, isMuseConnected, isHatConnected
 import 'dart:async';
-import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -68,6 +68,7 @@ class BleProvider extends ChangeNotifier {
 
   // ── New multi-device state ─────────────────────────────────────────────────
   bool                          _isScanning       = false;
+  bool                          _isConnecting     = false;
   List<ScannedDevice>           _scannedDevices   = [];
   BluetoothDevice?              _connectedMuse;
   BluetoothDevice?              _connectedHat;
@@ -89,6 +90,7 @@ class BleProvider extends ChangeNotifier {
 
   // ── New getters ────────────────────────────────────────────────────────────
   bool                get isScanning       => _isScanning;
+  bool                get isConnecting     => _isConnecting;
   List<ScannedDevice> get discoveredDevices => List.unmodifiable(_scannedDevices);
   BluetoothDevice?    get connectedMuse    => _connectedMuse;
   BluetoothDevice?    get connectedHat     => _connectedHat;
@@ -182,6 +184,7 @@ class BleProvider extends ChangeNotifier {
         if (name.isEmpty) continue;
         final id   = r.device.remoteId.str;
         final kind = BleDeviceKindX.classify(name);
+        debugPrint('[BLE Scan] $name | $id | RSSI: ${r.rssi} | kind: $kind');
         final sd   = ScannedDevice(device: r.device, rssi: r.rssi, kind: kind);
         if (!found.containsKey(id) || found[id]!.rssi != r.rssi) {
           found[id] = sd;
@@ -220,27 +223,30 @@ class BleProvider extends ChangeNotifier {
     _cleanup();
     await FlutterBluePlus.stopScan().catchError((_) {});
     _setState(BLEState.connecting);
+    _isConnecting = true;
     _error = null;
 
     try {
       final device = BluetoothDevice.fromId(museDevice.id);
       _museDevice  = device;
 
+      debugPrint('[BLE Connect] Connecting to ${museDevice.name} (${museDevice.id}) — BLE only, no pairing');
+
       _subs.add(device.connectionState.listen((cs) {
+        debugPrint('[BLE State] ${device.remoteId} → $cs');
         if (cs == BluetoothConnectionState.disconnected &&
             _state == BLEState.connected) {
           _onDropped();
         }
       }));
 
-      await device.connect(timeout: const Duration(seconds: 15));
+      await device.connect(autoConnect: false, timeout: const Duration(seconds: 15));
 
-      if (Platform.isAndroid) {
-        await device.createBond().catchError((_) {});
-      }
+      await Future.delayed(const Duration(milliseconds: 500));
 
       final services = await device.discoverServices();
       _deviceServices[device.remoteId.str] = services;
+      debugPrint('[BLE Services] Discovered ${services.length} services for ${device.remoteId}');
 
       final service = services.firstWhere(
         (s) => s.serviceUuid.str128.toLowerCase() == _kMuseServiceUUID,
@@ -255,6 +261,7 @@ class BleProvider extends ChangeNotifier {
           (c) => c.characteristicUuid.str128.toLowerCase() == uuid,
           orElse: () => throw Exception('EEG char $uuid not found'),
         );
+        debugPrint('[BLE EEG] Subscribing to channel $i: $uuid');
         await char.setNotifyValue(true);
         final idx = i;
         _subs.add(char.onValueReceived.listen((value) {
@@ -277,12 +284,16 @@ class BleProvider extends ChangeNotifier {
 
       _reconnectAttempt = 0;
       _connectedDevice  = museDevice;
-      _connectedMuse    = device; // ← new API
+      _connectedMuse    = device;
+      _isConnecting     = false;
       _setState(BLEState.connected);
+      debugPrint('[BLE Connect] Connected to ${museDevice.name} — EEG streaming started');
 
       _postTimer = Timer.periodic(_kPostInterval, (_) => _processBands());
     } catch (e) {
-      _error = e.toString();
+      debugPrint('[BLE Error] connect() failed: $e');
+      _error        = e.toString();
+      _isConnecting = false;
       _setState(BLEState.error);
     }
   }
@@ -360,18 +371,115 @@ class BleProvider extends ChangeNotifier {
   // ════════════════════════════════════════════════════════════════════════════
   // New multi-device connect / disconnect
   // ════════════════════════════════════════════════════════════════════════════
+
+  /// BLE-only Muse connect — no pairing, no PIN, no createBond().
+  Future<void> connectMuse(BluetoothDevice device) async {
+    final rssi = _scannedDevices
+        .where((d) => d.device.remoteId == device.remoteId)
+        .map((d) => d.rssi)
+        .firstOrNull ?? -80;
+    final md = MuseDevice(id: device.remoteId.str, name: device.platformName, rssi: rssi);
+    await connect(md);
+  }
+
+  /// Connect to a BLE device by MAC address — no pairing, no PIN, no createBond().
+  ///
+  /// Resolution order:
+  ///   1. Already in scan cache → connectToDevice (knows kind).
+  ///   2. Not cached → 4-second scan to find it, then connectToDevice.
+  ///   3. Still not visible → connect directly by identifier (generic BLE).
+  Future<void> connectByMac(String mac) async {
+    _isConnecting = true;
+    _error        = null;
+    notifyListeners();
+
+    try {
+      // 1. Already seen in this scan session?
+      final cached = _scannedDevices
+          .where((d) => d.device.remoteId.str.toLowerCase() == mac.toLowerCase())
+          .firstOrNull;
+
+      if (cached != null) {
+        debugPrint('[BLE MAC] $mac found in cache — connecting');
+        await connectToDevice(cached.device);
+        return;
+      }
+
+      // 2. Run a short 4-second scan to find the device by MAC.
+      debugPrint('[BLE MAC] $mac not cached — scanning 4 s');
+      await FlutterBluePlus.stopScan().catchError((_) {});
+
+      final completer = Completer<BluetoothDevice?>();
+      StreamSubscription? sub;
+      sub = FlutterBluePlus.onScanResults.listen((results) {
+        for (final r in results) {
+          if (r.device.remoteId.str.toLowerCase() == mac.toLowerCase()) {
+            final sd = ScannedDevice(
+              device: r.device,
+              rssi: r.rssi,
+              kind: BleDeviceKindX.classify(r.device.platformName),
+            );
+            if (!_scannedDevices.any((d) => d.device.remoteId == r.device.remoteId)) {
+              _scannedDevices = [..._scannedDevices, sd];
+              notifyListeners();
+            }
+            if (!completer.isCompleted) completer.complete(r.device);
+          }
+        }
+      });
+
+      unawaited(FlutterBluePlus.startScan(timeout: const Duration(seconds: 4)));
+
+      BluetoothDevice? found;
+      try {
+        found = await completer.future.timeout(const Duration(seconds: 4));
+      } on TimeoutException {
+        found = null;
+      } finally {
+        sub.cancel();
+        await FlutterBluePlus.stopScan().catchError((_) {});
+      }
+
+      if (found != null) {
+        debugPrint('[BLE MAC] Found $mac in scan — connecting');
+        await connectToDevice(found);
+        return;
+      }
+
+      // 3. Device not visible — connect directly by identifier (BLE only).
+      debugPrint('[BLE MAC] $mac not visible after scan — connecting by identifier');
+      final device = BluetoothDevice(remoteId: DeviceIdentifier(mac));
+      await device.connect(autoConnect: false, timeout: const Duration(seconds: 15));
+      await Future.delayed(const Duration(milliseconds: 500));
+      await device.discoverServices();
+
+      if (!_scannedDevices.any((d) => d.device.remoteId == device.remoteId)) {
+        _scannedDevices = [
+          ..._scannedDevices,
+          ScannedDevice(
+            device: device,
+            rssi: -80,
+            kind: BleDeviceKindX.classify(device.platformName),
+          ),
+        ];
+      }
+    } catch (e) {
+      _error = 'Connection failed';
+      debugPrint('[BLE MAC] connectByMac($mac) error: $e');
+      rethrow;
+    } finally {
+      _isConnecting = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> connectToDevice(BluetoothDevice device) async {
     final name = device.platformName;
     final kind = BleDeviceKindX.classify(name);
 
     switch (kind) {
       case BleDeviceKind.muse:
-        final rssi = _scannedDevices
-            .where((d) => d.device.remoteId == device.remoteId)
-            .map((d) => d.rssi)
-            .firstOrNull ?? -80;
-        final md = MuseDevice(id: device.remoteId.str, name: name, rssi: rssi);
-        await connect(md);
+        await connectMuse(device);
       case BleDeviceKind.sentioHat:
         await _connectHat(device);
       case BleDeviceKind.other:
@@ -417,6 +525,24 @@ class BleProvider extends ChangeNotifier {
     await char.write(command.codeUnits);
   }
 
+  /// Send a JSON payload to the Hat's LED characteristic.
+  /// Uses allowLongWrite so payloads larger than the negotiated MTU are chunked
+  /// automatically by flutter_blue_plus.
+  Future<void> sendHatPayload(String json) async {
+    final char = _hatCommandChar;
+    if (char == null) throw Exception('SENTIO Hat not connected');
+    final bytes = utf8.encode(json);
+    debugPrint('[BLE Hat] sendHatPayload ${bytes.length} B → ${char.characteristicUuid}');
+    await char.write(bytes, withoutResponse: false, allowLongWrite: true);
+  }
+
+  /// Send a SessionLedPattern to the Hat using the same payload contract as
+  /// LedConfig — the Hat firmware only sees mode/brightness/speed/colors/pattern.
+  Future<void> previewSessionPattern(dynamic pattern) async {
+    final payload = jsonEncode(pattern.toJson());
+    await sendHatPayload(payload);
+  }
+
   // ── SENTIO Hat connect ─────────────────────────────────────────────────────
   Future<void> _connectHat(BluetoothDevice device) async {
     _error = null;
@@ -435,11 +561,8 @@ class BleProvider extends ChangeNotifier {
         }
       }));
 
-      await device.connect(timeout: const Duration(seconds: 15));
-
-      if (Platform.isAndroid) {
-        await device.createBond().catchError((_) {});
-      }
+      debugPrint('[BLE Hat] Connecting to ${device.platformName} (${device.remoteId}) — BLE only');
+      await device.connect(autoConnect: false, timeout: const Duration(seconds: 15));
 
       final services = await device.discoverServices();
       _deviceServices[device.remoteId.str] = services;
@@ -534,6 +657,12 @@ class BleProvider extends ChangeNotifier {
     for (final s in _hatSubs) s.cancel();
     super.dispose();
   }
+}
+
+// ── MAC address validation ─────────────────────────────────────────────────────
+bool isValidMac(String mac) {
+  final re = RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$');
+  return re.hasMatch(mac);
 }
 
 // ── Android permission helper ──────────────────────────────────────────────────

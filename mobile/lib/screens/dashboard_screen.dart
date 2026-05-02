@@ -12,6 +12,7 @@ import '../providers/session_provider.dart';
 import 'connect_device_screen.dart';
 import 'history_screen.dart';
 import 'led_display_screen.dart';
+import 'session_pattern_preview_screen.dart';
 import 'session_screen.dart';
 import 'settings_screen.dart';
 
@@ -632,8 +633,80 @@ class _QuickActionsCard extends StatelessWidget {
   final BuildContext context;
   const _QuickActionsCard({required this.context});
 
+  Future<void> _handleStartSession() async {
+    final ble      = context.read<BleProvider>();
+    final session  = context.read<SessionProvider>();
+
+    if (ble.state != BLEState.connected) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: _kCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('No Device Connected',
+              style: _pp(size: 17, weight: FontWeight.w600)),
+          content: Text(
+            'Connect your Muse 2 headband before starting a session.',
+            style: _pp(size: 13, color: _kMuted),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancel', style: _pp(size: 14, color: _kMuted)),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const ConnectDeviceScreen()));
+              },
+              child: Text('Connect',
+                  style: _pp(size: 14, color: _kCyan, weight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (session.hasActiveSession) {
+      final endAndStart = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: _kCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('Session Already Running',
+              style: _pp(size: 17, weight: FontWeight.w600)),
+          content: Text(
+            'A session is already active. End it and start a new one?',
+            style: _pp(size: 13, color: _kMuted),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Cancel', style: _pp(size: 14, color: _kMuted)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text('End & Start New',
+                  style: _pp(size: 14, color: _kCyan, weight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      );
+      if (endAndStart != true) return;
+      try { await session.stopSession(); } catch (_) {}
+    }
+
+    if (!context.mounted) return;
+    Navigator.push(context,
+        MaterialPageRoute(builder: (_) => const SessionScreen()));
+  }
+
   @override
   Widget build(BuildContext ctx) {
+    final hasSession = ctx.watch<SessionProvider>().hasActiveSession;
+
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -647,53 +720,7 @@ class _QuickActionsCard extends StatelessWidget {
                 icon: Icon(PhosphorIcons.play(), color: _kCyan, size: 26),
                 label: 'Start\nSession',
                 accent: _kCyan,
-                onTap: () {
-                  final ble = context.read<BleProvider>();
-                  if (ble.state != BLEState.connected) {
-                    showDialog<void>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        backgroundColor: _kCard,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20)),
-                        title: Text('No Device Connected',
-                            style: _pp(size: 17, weight: FontWeight.w600)),
-                        content: Text(
-                          'Connect your Muse 2 headband before starting a session.',
-                          style: _pp(size: 13, color: _kMuted),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: Text('Cancel',
-                                style: _pp(size: 14, color: _kMuted)),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) =>
-                                        const ConnectDeviceScreen()),
-                              );
-                            },
-                            child: Text('Connect',
-                                style: _pp(
-                                    size: 14,
-                                    color: _kCyan,
-                                    weight: FontWeight.w600)),
-                          ),
-                        ],
-                      ),
-                    );
-                    return;
-                  }
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SessionScreen()),
-                  );
-                },
+                onTap: _handleStartSession,
               ),
               QuickActionItem(
                 icon: Icon(PhosphorIcons.dotsSixVertical(), color: _kMagenta, size: 26),
@@ -710,11 +737,15 @@ class _QuickActionsCard extends StatelessWidget {
                   context, MaterialPageRoute(builder: (_) => const HistoryScreen())),
               ),
               QuickActionItem(
-                icon: Icon(PhosphorIcons.gear(), color: _kCyan, size: 26),
-                label: 'Settings',
-                accent: _kCyan,
+                icon: Icon(PhosphorIcons.waveform(),
+                    color: hasSession ? _kCyan : _kMuted, size: 26),
+                label: 'Session\nPattern',
+                accent: hasSession ? _kCyan : _kMuted,
+                enabled: hasSession,
                 onTap: () => Navigator.push(
-                  context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const SessionPatternPreviewScreen())),
               ),
             ],
           ),
@@ -732,6 +763,7 @@ class QuickActionItem extends StatefulWidget {
   final String label;
   final Color accent;
   final VoidCallback onTap;
+  final bool enabled;
 
   const QuickActionItem({
     super.key,
@@ -739,6 +771,7 @@ class QuickActionItem extends StatefulWidget {
     required this.label,
     required this.accent,
     required this.onTap,
+    this.enabled = true,
   });
 
   @override
@@ -751,11 +784,11 @@ class _QuickActionItemState extends State<QuickActionItem> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown:   (_) => setState(() => _down = true),
-      onTapUp:     (_) { setState(() => _down = false); widget.onTap(); },
-      onTapCancel: ()  => setState(() => _down = false),
+      onTapDown:   widget.enabled ? (_) => setState(() => _down = true) : null,
+      onTapUp:     widget.enabled ? (_) { setState(() => _down = false); widget.onTap(); } : null,
+      onTapCancel: widget.enabled ? ()  => setState(() => _down = false) : null,
       child: AnimatedOpacity(
-        opacity: _down ? 0.65 : 1.0,
+        opacity: !widget.enabled ? 0.38 : (_down ? 0.65 : 1.0),
         duration: const Duration(milliseconds: 80),
         child: Column(children: [
           Container(

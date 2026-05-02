@@ -14,6 +14,7 @@ from api.sessions_lifecycle import router as sessions_router
 from api.dashboard import router as dashboard_router
 from api.statistics import router as statistics_router
 from api.ai_router import router as ai_router
+from api.device_router import router as device_router
 from config import settings
 
 if not logging.getLogger().handlers:
@@ -123,6 +124,7 @@ app.include_router(sessions_router,   prefix="/api",       tags=["sessions"])
 app.include_router(dashboard_router,  prefix="/api",       tags=["dashboard"])
 app.include_router(statistics_router, prefix="/api",       tags=["statistics"])
 app.include_router(ai_router,         prefix="/api",       tags=["ai"])
+app.include_router(device_router,     prefix="/api",       tags=["device"])
 app.include_router(ws_router)
 
 # -----------------------------

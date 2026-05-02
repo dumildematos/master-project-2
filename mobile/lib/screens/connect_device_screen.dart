@@ -139,6 +139,20 @@ class _ConnectDeviceScreenState extends State<ConnectDeviceScreen>
     await ble.disconnectDevice(device.device);
   }
 
+  void _openMacSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: SentioColors.cardAlt,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _MacConnectSheet(
+        onConnect: (mac) => context.read<BleProvider>().connectByMac(mac),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
@@ -173,6 +187,11 @@ class _ConnectDeviceScreenState extends State<ConnectDeviceScreen>
                       isScanning: ble.isScanning,
                       onRefresh: () => ble.startScan(),
                     ),
+
+                    const SizedBox(height: kMd),
+
+                    // ── Connect by MAC ─────────────────────────────────────
+                    _MacAddressButton(onTap: _openMacSheet),
 
                     const SizedBox(height: kLg),
 
@@ -903,6 +922,255 @@ class _HelpRow extends StatelessWidget {
             const Icon(Icons.chevron_right_rounded, color: _kMuted, size: 20),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Connect via MAC address button
+// ══════════════════════════════════════════════════════════════════════════════
+class _MacAddressButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _MacAddressButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: kMd, vertical: 14),
+        decoration: BoxDecoration(
+          color: _kCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _kCyan.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: _kCyan.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.link_rounded, color: _kCyan, size: 18),
+            ),
+            const SizedBox(width: kMd),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Connect via MAC Address',
+                    style: GoogleFonts.poppins(
+                      color: _kText,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    'Already know the device address?',
+                    style: GoogleFonts.poppins(color: _kMuted, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: _kMuted, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MAC address bottom sheet
+// ══════════════════════════════════════════════════════════════════════════════
+class _MacConnectSheet extends StatefulWidget {
+  final Future<void> Function(String mac) onConnect;
+  const _MacConnectSheet({required this.onConnect});
+
+  @override
+  State<_MacConnectSheet> createState() => _MacConnectSheetState();
+}
+
+class _MacConnectSheetState extends State<_MacConnectSheet> {
+  final _ctrl = TextEditingController();
+  String? _error;
+  bool _isConnecting = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  String? _validate(String mac) {
+    if (mac.isEmpty) return 'Enter a MAC address';
+    if (!isValidMac(mac)) return 'Invalid format — use AA:BB:CC:DD:EE:FF';
+    return null;
+  }
+
+  Future<void> _connect() async {
+    final mac = _ctrl.text.trim().toUpperCase();
+    final err = _validate(mac);
+    if (err != null) {
+      setState(() => _error = err);
+      return;
+    }
+    setState(() {
+      _error = null;
+      _isConnecting = true;
+    });
+    try {
+      await widget.onConnect(mac);
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _error = 'Connection failed — make sure the device is on and nearby';
+          _isConnecting = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        24, 16, 24,
+        24 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: _kBorder,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Title
+          Row(
+            children: [
+              const Icon(Icons.link_rounded, color: _kCyan, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Connect via MAC Address',
+                style: GoogleFonts.poppins(
+                  color: _kText,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Enter the Bluetooth MAC address of your device.',
+            style: GoogleFonts.poppins(color: _kMuted, fontSize: 12),
+          ),
+          const SizedBox(height: 20),
+
+          // Input
+          TextField(
+            controller: _ctrl,
+            enabled: !_isConnecting,
+            autofocus: true,
+            textCapitalization: TextCapitalization.characters,
+            style: GoogleFonts.robotoMono(
+              color: _kText,
+              fontSize: 15,
+              letterSpacing: 1.2,
+            ),
+            decoration: InputDecoration(
+              hintText: 'AA:BB:CC:DD:EE:FF',
+              hintStyle: GoogleFonts.robotoMono(
+                color: _kMuted.withValues(alpha: 0.45),
+                fontSize: 15,
+              ),
+              errorText: _error,
+              errorStyle: GoogleFonts.poppins(color: _kRed, fontSize: 11),
+              errorMaxLines: 2,
+              filled: true,
+              fillColor: SentioColors.bgTop,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kBorder),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kCyan, width: 1.5),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kRed),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kRed, width: 1.5),
+              ),
+            ),
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+            onSubmitted: (_) => _connect(),
+          ),
+          const SizedBox(height: 16),
+
+          // Connect button
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _isConnecting ? null : _connect,
+              style: FilledButton.styleFrom(
+                backgroundColor: _kCyan,
+                disabledBackgroundColor: _kCyan.withValues(alpha: 0.35),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: _isConnecting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(
+                      'Connect',
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+            ),
+          ),
+        ],
       ),
     );
   }

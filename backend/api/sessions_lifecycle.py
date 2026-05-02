@@ -3,13 +3,16 @@ api/sessions_lifecycle.py
 --------------------------
 Session recording lifecycle — separate from the BrainFlow stream management.
 
-  POST /api/sessions/start                  — create a DB session record
-  POST /api/sessions/{session_id}/sample    — explicit sample upload (mobile path)
-  POST /api/sessions/{session_id}/end       — finalise + compute summary
-  GET  /api/sessions/history?range=...      — filtered session list
-  GET  /api/sessions/{session_id}/timeline  — per-sample emotion timeline
+  POST /api/sessions/start                       — create a DB session record
+  POST /api/sessions/{session_id}/sample         — explicit sample upload (mobile path)
+  POST /api/sessions/{session_id}/end            — finalise + compute summary
+  GET  /api/sessions/history?range=...           — filtered session list
+  GET  /api/sessions/active                      — active session + live LED pattern
+  GET  /api/sessions/{session_id}/timeline       — per-sample emotion timeline
+  GET  /api/sessions/{session_id}/latest-pattern — current LED pattern for a session
 """
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -18,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from api.auth import get_current_user
 from database import get_db
-from models.db_models import User
+from models.db_models import SessionLog as SessionLogModel, User
 from services import session_service, stats_service
 
 logger = logging.getLogger("sentio.sessions_api")
@@ -86,6 +89,29 @@ class TimelineEntry(BaseModel):
     alpha:          Optional[float]
     beta:           Optional[float]
     gamma:          Optional[float]
+
+
+class SessionLedPatternOut(BaseModel):
+    emotion:         str
+    confidence:      int
+    mode:            str
+    mode_name:       str
+    brightness:      int
+    speed:           int
+    primary_color:   str
+    secondary_color: str
+    grid:            list
+    updated_at:      str
+
+
+class SessionActiveOut(BaseModel):
+    active:             bool
+    session_id:         Optional[str]         = None
+    started_at:         Optional[str]         = None
+    duration_seconds:   Optional[int]         = None
+    current_state:      Optional[str]         = None
+    current_confidence: Optional[float]       = None
+    latest_pattern:     Optional[SessionLedPatternOut] = None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -216,6 +242,82 @@ def get_history(
         )
         for s in logs
     ]
+
+
+@router.get("/sessions/active", response_model=SessionActiveOut)
+def get_active_session(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the user's active session plus a live LED pattern generated from the stream."""
+    from services.session_manager import session_manager
+    from services.session_pattern_service import generate_pattern
+
+    log = (
+        db.query(SessionLogModel)
+        .filter(
+            SessionLogModel.user_id == current_user.id,
+            SessionLogModel.status == "active",
+            SessionLogModel.deleted_at.is_(None),
+            SessionLogModel.end_time.is_(None),
+        )
+        .order_by(SessionLogModel.start_time.desc())
+        .first()
+    )
+
+    if log is None:
+        return SessionActiveOut(active=False)
+
+    now = datetime.now(timezone.utc)
+    start = log.start_time if log.start_time.tzinfo else log.start_time.replace(tzinfo=timezone.utc)
+    duration_s = max(0, int((now - start).total_seconds()))
+
+    # Prefer live stream data; fall back to DB dominant emotion
+    msg        = session_manager.get_latest_stream_message()
+    emotion    = (msg or {}).get("emotion") or log.dominant_emotion or "calm"
+    confidence = float((msg or {}).get("confidence") or log.avg_confidence or 0.5)
+
+    pattern = generate_pattern(emotion, confidence)
+
+    return SessionActiveOut(
+        active=True,
+        session_id=log.id,
+        started_at=start.isoformat(),
+        duration_seconds=duration_s,
+        current_state=emotion,
+        current_confidence=round(confidence, 3),
+        latest_pattern=SessionLedPatternOut(**pattern),
+    )
+
+
+@router.get("/sessions/{session_id}/latest-pattern", response_model=SessionLedPatternOut)
+def get_latest_pattern(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the current LED pattern for a specific session."""
+    from services.session_manager import session_manager
+    from services.session_pattern_service import generate_pattern
+
+    log = (
+        db.query(SessionLogModel)
+        .filter(
+            SessionLogModel.id == session_id,
+            SessionLogModel.user_id == current_user.id,
+            SessionLogModel.deleted_at.is_(None),
+        )
+        .first()
+    )
+    if log is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    msg        = session_manager.get_latest_stream_message()
+    emotion    = (msg or {}).get("emotion") or log.dominant_emotion or "calm"
+    confidence = float((msg or {}).get("confidence") or log.avg_confidence or 0.5)
+
+    pattern = generate_pattern(emotion, confidence)
+    return SessionLedPatternOut(**pattern)
 
 
 @router.get("/sessions/{session_id}/timeline", response_model=list[TimelineEntry])
