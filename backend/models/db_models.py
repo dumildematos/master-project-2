@@ -8,13 +8,16 @@ Tables
 users             — registered accounts (email/password or Google OAuth)
 session_logs      — EEG session history linked to a user (with state-time breakdown)
 brainwave_samples — per-sample EEG + emotion records during a session
+emotion_labels    — user-corrected emotion labels for AI training
+user_baselines    — per-user EEG baseline from calibration
+model_metadata    — trained AI model registry (global and per-user)
 """
 import uuid
 from datetime import datetime
 
 from sqlalchemy import (
     Boolean, Column, DateTime, Float, ForeignKey,
-    Integer, String, Text,
+    Integer, String, Text, JSON,
 )
 from sqlalchemy.orm import relationship
 
@@ -132,3 +135,76 @@ class BrainwaveSample(Base):
             f"<BrainwaveSample id={self.id} session={self.session_id} "
             f"state={self.detected_state} t={self.timestamp}>"
         )
+
+
+class EmotionLabel(Base):
+    """User-submitted or system-generated emotion label for AI training."""
+    __tablename__ = "emotion_labels"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(36), ForeignKey("session_logs.id"), nullable=True, index=True)
+    user_id    = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    timestamp  = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    # Band powers at the moment of labelling (snapshot)
+    alpha = Column(Float, nullable=True)
+    beta  = Column(Float, nullable=True)
+    theta = Column(Float, nullable=True)
+    gamma = Column(Float, nullable=True)
+    delta = Column(Float, nullable=True)
+
+    label      = Column(String(20), nullable=False)  # calm|focused|relaxed|stressed|excited
+    source     = Column(String(10), nullable=False, default="user")  # user | system
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    user    = relationship("User")
+    session = relationship("SessionLog")
+
+    def __repr__(self) -> str:
+        return f"<EmotionLabel id={self.id} user={self.user_id} label={self.label} src={self.source}>"
+
+
+class UserBaseline(Base):
+    """Per-user EEG baseline collected during the calibration session."""
+    __tablename__ = "user_baselines"
+
+    id                   = Column(Integer, primary_key=True, autoincrement=True)
+    user_id              = Column(String(36), ForeignKey("users.id"), nullable=False, unique=True, index=True)
+
+    # Band-power means from neutral baseline step
+    alpha_mean           = Column(Float, nullable=True)
+    beta_mean            = Column(Float, nullable=True)
+    theta_mean           = Column(Float, nullable=True)
+    gamma_mean           = Column(Float, nullable=True)
+    delta_mean           = Column(Float, nullable=True)
+
+    # Full per-step data (neutral / focus / relax) stored as JSON
+    calibration_data     = Column(JSON, nullable=True)
+
+    created_at           = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at           = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User")
+
+    def __repr__(self) -> str:
+        return f"<UserBaseline id={self.id} user={self.user_id}>"
+
+
+class ModelMetadata(Base):
+    """Registry of trained AI emotion models (global and per-user)."""
+    __tablename__ = "model_metadata"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    # Null user_id = global shared model; non-null = personalized model
+    user_id    = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+
+    model_path = Column(String(256), nullable=False)
+    model_type = Column(String(40),  nullable=False)  # random_forest | logistic_regression
+    accuracy   = Column(Float, nullable=True)
+    n_samples  = Column(Integer, nullable=True)
+    trained_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    user = relationship("User")
+
+    def __repr__(self) -> str:
+        return f"<ModelMetadata id={self.id} user={self.user_id} type={self.model_type} acc={self.accuracy}>"

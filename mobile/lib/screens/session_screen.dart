@@ -6,6 +6,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../models/sentio_state.dart';
+import '../providers/ai_provider.dart';
 import '../providers/sentio_provider.dart';
 import '../providers/session_provider.dart';
 import '../services/sentio_api.dart' as api;
@@ -217,11 +218,14 @@ class _SessionScreenState extends State<SessionScreen>
                       const SizedBox(height: 14),
 
                       // 3. Session Average
-                      // TODO: derive dominant state from emotionHistory aggregation
                       SessionAverageCard(
                         emotion:    data.emotion,
                         percentage: data.confidence.round(),
                       ),
+                      const SizedBox(height: 14),
+
+                      // 3b. AI Feedback card
+                      _AiFeedbackCard(sentioData: data),
                       const SizedBox(height: 14),
 
                       // 4. Top States breakdown
@@ -287,6 +291,229 @@ class _SummaryRow extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── AI Feedback Card ──────────────────────────────────────────────────────────
+class _AiFeedbackCard extends StatefulWidget {
+  final SentioState sentioData;
+  const _AiFeedbackCard({required this.sentioData});
+
+  @override
+  State<_AiFeedbackCard> createState() => _AiFeedbackCardState();
+}
+
+class _AiFeedbackCardState extends State<_AiFeedbackCard> {
+  bool _confirmed = false;
+  bool _corrected = false;
+
+  static const _emotions = ['calm', 'focused', 'relaxed', 'stressed', 'excited'];
+
+  IconData _icon(String e) {
+    switch (e) {
+      case 'focused':  return PhosphorIcons.crosshair();
+      case 'stressed': return PhosphorIcons.atom();
+      case 'excited':  return PhosphorIcons.lightning();
+      default:         return PhosphorIcons.flowerLotus();
+    }
+  }
+
+  Future<void> _onCorrect() async {
+    final session  = context.read<SessionProvider>();
+    final aiProv   = context.read<AiProvider>();
+    final d        = widget.sentioData;
+    await aiProv.submitFeedback(
+      label:     d.emotion,
+      sessionId: session.activeSessionId,
+      alpha: d.alpha, beta: d.beta, theta: d.theta,
+      gamma: d.gamma, delta: d.delta,
+    );
+    if (!mounted) return;
+    setState(() { _confirmed = true; _corrected = false; });
+  }
+
+  Future<void> _onWrong() async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: _kCardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(
+                  color: _kCardBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('What were you actually feeling?',
+                style: GoogleFonts.poppins(
+                    color: _kTextPri, fontSize: 15, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 16),
+            ..._emotions.map((e) => ListTile(
+                  leading: Icon(_icon(e), color: emotionColor(e), size: 22),
+                  title: Text(emotionLabel(e),
+                      style: GoogleFonts.poppins(color: _kTextPri, fontSize: 14)),
+                  onTap: () => Navigator.pop(ctx, e),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                )),
+          ],
+        ),
+      ),
+    );
+
+    if (picked == null || !mounted) return;
+
+    final session = context.read<SessionProvider>();
+    final aiProv  = context.read<AiProvider>();
+    final d       = widget.sentioData;
+    await aiProv.submitFeedback(
+      label:     picked,
+      sessionId: session.activeSessionId,
+      alpha: d.alpha, beta: d.beta, theta: d.theta,
+      gamma: d.gamma, delta: d.delta,
+    );
+    if (!mounted) return;
+    setState(() { _confirmed = false; _corrected = true; });
+  }
+
+  @override
+  void didUpdateWidget(_AiFeedbackCard old) {
+    super.didUpdateWidget(old);
+    // Reset feedback state when emotion changes so the user can re-label
+    if (old.sentioData.emotion != widget.sentioData.emotion) {
+      setState(() { _confirmed = false; _corrected = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d    = widget.sentioData;
+    final col  = emotionColor(d.emotion);
+    final conf = (d.confidence * 100).round();
+
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(PhosphorIcons.brain(), color: _kAccentCyan, size: 16),
+              const SizedBox(width: 6),
+              Text('AI Detection',
+                  style: GoogleFonts.poppins(
+                      color: _kTextSec, fontSize: 12)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _kAccentCyan.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text('$conf% confidence',
+                    style: GoogleFonts.poppins(
+                        color: _kAccentCyan, fontSize: 11)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(_icon(d.emotion), color: col, size: 22),
+              const SizedBox(width: 8),
+              Text(emotionLabel(d.emotion),
+                  style: GoogleFonts.poppins(
+                      color: _kTextPri,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (_confirmed)
+            _StatusChip(
+              icon: PhosphorIcons.checkCircle(),
+              label: 'Thanks for confirming!',
+              color: _kAccentGrn,
+            )
+          else if (_corrected)
+            _StatusChip(
+              icon: PhosphorIcons.checkCircle(),
+              label: 'Feedback saved — model will improve',
+              color: _kAccentCyan,
+            )
+          else
+            Row(
+              children: [
+                Text('Is this correct?',
+                    style: GoogleFonts.poppins(
+                        color: _kTextSec, fontSize: 13)),
+                const Spacer(),
+                _FeedbackBtn(
+                  icon:    PhosphorIcons.thumbsUp(),
+                  color:   _kAccentGrn,
+                  onTap:   _onCorrect,
+                ),
+                const SizedBox(width: 10),
+                _FeedbackBtn(
+                  icon:    PhosphorIcons.thumbsDown(),
+                  color:   _kAccentRed,
+                  onTap:   _onWrong,
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeedbackBtn extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  const _FeedbackBtn({required this.icon, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.4)),
+          ),
+          child: Icon(icon, color: color, size: 18),
+        ),
+      );
+}
+
+class _StatusChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  const _StatusChip({required this.icon, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(label,
+                style: GoogleFonts.poppins(color: color, fontSize: 12)),
+          ),
+        ],
+      );
 }
 
 // ── Top bar ────────────────────────────────────────────────────────────────────

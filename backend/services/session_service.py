@@ -53,6 +53,7 @@ def create_session(
     db.refresh(log)
 
     session_manager.set_db_session_id(log.id)
+    session_manager.set_current_user_id(user_id)
     logger.info("DB session created id=%s user=%s title=%s", log.id, user_id, title)
     return log
 

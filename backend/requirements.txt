@@ -22,3 +22,4 @@ python-jose[cryptography]>=3.3
 google-auth>=2.0
 requests>=2.31
 email-validator>=2.0
+joblib>=1.3
