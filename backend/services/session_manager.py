@@ -36,6 +36,8 @@ class SessionManager:
         self._arduino_lock = threading.Lock()
         self._db_session_id: Optional[str] = None
         self._db_session_lock = threading.Lock()
+        self._current_user_id: Optional[str] = None
+        self._user_id_lock = threading.Lock()
 
     def start_session(self, config: Dict[str, Any]) -> str:
         """
@@ -83,6 +85,7 @@ class SessionManager:
         self.user_pattern_override = None
         self.arduino_status = None
         self.clear_latest_stream_message()
+        self.set_current_user_id(None)
 
     def add_emotion(self, emotion: str, confidence: Optional[float] = None, detected_emotion: Optional[str] = None):
         """
@@ -185,6 +188,16 @@ class SessionManager:
     def clear_db_session_id(self) -> None:
         with self._db_session_lock:
             self._db_session_id = None
+
+    # ── Current user tracking (used by AI service for model lookup) ───────────
+
+    def set_current_user_id(self, user_id: Optional[str]) -> None:
+        with self._user_id_lock:
+            self._current_user_id = user_id
+
+    def get_current_user_id(self) -> Optional[str]:
+        with self._user_id_lock:
+            return self._current_user_id
 
     # ── Arduino status reporting ──────────────────────────────────────────────
 

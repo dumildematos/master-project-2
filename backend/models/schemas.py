@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Dict, Optional, List
 from enum import Enum
 
 
@@ -98,6 +98,8 @@ class EmotionResult(BaseModel):
     detected_confidence: Optional[float] = None
     mindfulness: Optional[float] = None
     restfulness: Optional[float] = None
+    # Per-class probability distribution (calm|focused|relaxed|stressed|excited)
+    emotion_scores: Optional[Dict[str, float]] = None
 
 
 # -----------------------------

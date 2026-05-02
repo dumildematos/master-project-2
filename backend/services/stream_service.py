@@ -5,13 +5,13 @@ from collections import deque
 from config import settings
 from eeg.muse_connection import MuseConnection
 from eeg.signal_processing import SignalProcessor
-from emotion.emotion_model import EmotionModel
 from heart_rate import HeartRateProcessor
 from models.schemas import EmotionResult, EmotionType, PatternType
 from patterns.pattern_mapper import PatternMapper
 from services.session_manager import SessionState, session_manager
 from services.guidance_service import get_guidance
 from services.pattern_service import get_ai_pattern
+import services.ai_emotion_service as ai_emotion_service
 
 logger = logging.getLogger("sentio.stream")
 
@@ -24,7 +24,6 @@ EMOTION_OVERRIDE_CONFIDENCE_BASE = 0.72
 EMOTION_OVERRIDE_CONFIDENCE_RANGE = 0.20
 
 processor = SignalProcessor(settings.muse_sampling_rate)
-emotion_model = EmotionModel()
 pattern_mapper = PatternMapper()
 emotion_window = deque(maxlen=EMOTION_HISTORY_MAXLEN)
 heart_rate_processor = HeartRateProcessor(
@@ -268,6 +267,8 @@ def _build_stream_message(
         # Explicit user selection (None = AI/auto).  Forwarded to clients so
         # the frontend and Arduino know which pattern was user-requested.
         "user_pattern_override": session_manager.get_user_pattern_override(),
+        # Per-class probability distribution from AI model
+        "emotion_scores": emotion_result.emotion_scores or {},
     }
 
 
@@ -387,7 +388,8 @@ def _process_stream_iteration(
             frames_emitted,
         )
 
-    emotion_result = _stabilize_emotion(emotion_model.predict(features))
+    user_id = session_manager.get_current_user_id()
+    emotion_result = _stabilize_emotion(ai_emotion_service.predict(features, user_id=user_id))
     session_manager.add_emotion(
         emotion_result.emotion.value,
         confidence=float(emotion_result.confidence),
@@ -494,8 +496,8 @@ def process_bands_from_mobile(features: dict) -> None:
     BlueMuse connection (there is none for mobile-source sessions).
     """
     selected_pattern = _get_selected_pattern()
-
-    emotion_result = _stabilize_emotion(emotion_model.predict(features))
+    user_id = session_manager.get_current_user_id()
+    emotion_result = _stabilize_emotion(ai_emotion_service.predict(features, user_id=user_id))
     session_manager.add_emotion(
         emotion_result.emotion.value,
         confidence=float(emotion_result.confidence),

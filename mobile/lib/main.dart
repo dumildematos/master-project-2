@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'providers/ai_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/ble_provider.dart';
 import 'providers/sentio_provider.dart';
@@ -26,6 +27,7 @@ class SentioRoot extends StatelessWidget {
         ChangeNotifierProvider<BleProvider>(create: (_) => BleProvider()),
         ChangeNotifierProvider<SentioProvider>(create: (_) => SentioProvider()),
         ChangeNotifierProvider<SessionProvider>(create: (_) => SessionProvider()),
+        ChangeNotifierProvider<AiProvider>(create: (_) => AiProvider()),
       ],
       child: MaterialApp(
         title: 'SENTIO',

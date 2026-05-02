@@ -197,3 +197,68 @@ Future<void> deleteSessionRecord(String sessionId) async {
   final res = await _api('/sessions/$sessionId', method: 'DELETE');
   if (res.statusCode != 200) throw Exception('Delete session ${res.statusCode}');
 }
+
+// ---------------------------------------------------------------------------
+// AI emotion endpoints
+// ---------------------------------------------------------------------------
+
+Future<Map<String, dynamic>> predictEmotion({
+  required double alpha,
+  required double beta,
+  required double theta,
+  required double gamma,
+  required double delta,
+}) async {
+  final res = await _api('/ai/predict', method: 'POST', body: {
+    'alpha': alpha,
+    'beta':  beta,
+    'theta': theta,
+    'gamma': gamma,
+    'delta': delta,
+  });
+  if (res.statusCode != 200) throw Exception('AI predict ${res.statusCode}');
+  return jsonDecode(res.body) as Map<String, dynamic>;
+}
+
+Future<Map<String, dynamic>> submitEmotionLabel({
+  required String label,
+  String? sessionId,
+  double? alpha,
+  double? beta,
+  double? theta,
+  double? gamma,
+  double? delta,
+}) async {
+  final res = await _api('/ai/label', method: 'POST', body: {
+    'label':      label,
+    if (sessionId != null) 'session_id': sessionId,
+    if (alpha != null) 'alpha': alpha,
+    if (beta  != null) 'beta':  beta,
+    if (theta != null) 'theta': theta,
+    if (gamma != null) 'gamma': gamma,
+    if (delta != null) 'delta': delta,
+  });
+  if (res.statusCode != 200) throw Exception('Submit label ${res.statusCode}');
+  return jsonDecode(res.body) as Map<String, dynamic>;
+}
+
+Future<Map<String, dynamic>> triggerModelTraining() async {
+  final res = await _api('/ai/train', method: 'POST');
+  if (res.statusCode != 200) throw Exception('Train ${res.statusCode}');
+  return jsonDecode(res.body) as Map<String, dynamic>;
+}
+
+Future<Map<String, dynamic>> submitCalibration(
+    List<Map<String, dynamic>> steps) async {
+  final res = await _api('/ai/calibrate', method: 'POST', body: {
+    'steps': steps,
+  });
+  if (res.statusCode != 200) throw Exception('Calibrate ${res.statusCode}');
+  return jsonDecode(res.body) as Map<String, dynamic>;
+}
+
+Future<Map<String, dynamic>> getAiStatus() async {
+  final res = await _api('/ai/status');
+  if (res.statusCode != 200) throw Exception('AI status ${res.statusCode}');
+  return jsonDecode(res.body) as Map<String, dynamic>;
+}
