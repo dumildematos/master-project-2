@@ -14,8 +14,10 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
+import '../models/generated_led_pattern.dart';
 import '../models/led_config.dart';
 import '../providers/ble_provider.dart';
+import '../services/sentio_api.dart' as api;
 
 // ─── Brand tokens ──────────────────────────────────────────────────────────────
 const _bg1     = Color(0xFF02080D);
@@ -58,6 +60,23 @@ List<Color?> _defaultMatrix() => List.generate(64, (i) {
 // ─── Animation speed ───────────────────────────────────────────────────────────
 Duration _dur(double speed) =>
     Duration(milliseconds: ((1 - speed) * 3500 + 500).round());
+
+// ─── AI grid animation — breathes between primaryColor and secondaryColor ──────
+Color? _aiDot(
+  List<List<int>> grid,
+  Color primary,
+  Color secondary,
+  int r,
+  int c,
+  double t,
+) {
+  if (r >= grid.length || c >= grid[r].length) return null;
+  if (grid[r][c] == 0) return null;
+  // Offset phase per cell so they don't all pulse together
+  final phase = (r * 8 + c) / 64.0;
+  final pulse  = math.sin((t + phase * 0.3) * math.pi * 2) * 0.5 + 0.5;
+  return Color.lerp(primary, secondary, pulse);
+}
 
 // ─── Dot colour with animation phase t ∈ [0, 1) ──────────────────────────────
 Color? _dot(String mode, int r, int c, double t) {
@@ -143,6 +162,7 @@ class _State extends State<LedDisplayScreen>
   double _speed   = .60;
   int    _nav     = 0;
   bool   _sending = false;
+  GeneratedLedPattern? _generatedPattern;
   late AnimationController _ctrl;
 
   // Customize tab
@@ -189,11 +209,16 @@ class _State extends State<LedDisplayScreen>
 
     setState(() => _sending = true);
     try {
-      final config = _tab == 0
-          ? LedConfig.fromEffects(mode: _mode, brightness: _bright, speed: _speed)
-          : LedConfig.fromCustom(matrix: _matrix, brightness: _bright, speed: _speed, mode: _mode);
-
-      await ble.sendHatPayload(jsonEncode(config.toJson()));
+      final String payload;
+      if (_generatedPattern != null) {
+        payload = jsonEncode(_generatedPattern!.toHatPayload());
+      } else {
+        final config = _tab == 0
+            ? LedConfig.fromEffects(mode: _mode, brightness: _bright, speed: _speed)
+            : LedConfig.fromCustom(matrix: _matrix, brightness: _bright, speed: _speed, mode: _mode);
+        payload = jsonEncode(config.toJson());
+      }
+      await ble.sendHatPayload(payload);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -222,6 +247,50 @@ class _State extends State<LedDisplayScreen>
       if (mounted) setState(() => _sending = false);
     }
   }
+
+  Color _hexColor(String hex) {
+    final h = hex.replaceFirst('#', '');
+    return Color(int.parse('FF$h', radix: 16));
+  }
+
+  String _mapAiMode(String aiMode) => switch (aiMode.toLowerCase()) {
+    'pulse'                    => 'Pulse',
+    'wave'                     => 'Wave',
+    'burst' || 'fireworks'     => 'Fireworks',
+    'spiral'                   => 'Spiral',
+    _                          => 'Breathing',
+  };
+
+  void _applyAiPattern(GeneratedLedPattern pattern) {
+    final primary = _hexColor(pattern.primaryColor);
+    final newMatrix = List<Color?>.generate(64, (i) {
+      final row = i ~/ 8;
+      final col = i  % 8;
+      if (row < pattern.grid.length && col < pattern.grid[row].length) {
+        return pattern.grid[row][col] == 1 ? primary : null;
+      }
+      return null;
+    });
+    setState(() {
+      _generatedPattern = pattern;
+      _matrix           = newMatrix;
+      _tab              = 0; // Effects tab — animated preview
+      _mode             = _mapAiMode(pattern.mode);
+      _bright           = (pattern.brightness / 100.0).clamp(0.0, 1.0);
+      _speed            = (pattern.speed      / 100.0).clamp(0.0, 1.0);
+    });
+    _ctrl
+      ..duration = _dur(_speed)
+      ..reset()
+      ..repeat();
+  }
+
+  void _openAiSheet() => showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _AiGenerateSheet(onGenerated: _applyAiPattern),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -273,7 +342,18 @@ class _State extends State<LedDisplayScreen>
         builder: (_, __) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            LedMatrixPreview(mode: _mode, t: _ctrl.value, brightness: _bright),
+            LedMatrixPreview(
+              mode:        _mode,
+              t:           _ctrl.value,
+              brightness:  _bright,
+              aiGrid:      _generatedPattern?.grid,
+              aiPrimary:   _generatedPattern != null
+                               ? _hexColor(_generatedPattern!.primaryColor)
+                               : null,
+              aiSecondary: _generatedPattern != null
+                               ? _hexColor(_generatedPattern!.secondaryColor)
+                               : null,
+            ),
             const SizedBox(height: 30),
             ControlSlider(
               label: 'Brightness', value: _bright,
@@ -288,7 +368,13 @@ class _State extends State<LedDisplayScreen>
             ),
             const SizedBox(height: 22),
             ModeDropdown(mode: _mode, modes: _modes, onPick: _setMode),
-            const SizedBox(height: 28),
+            if (_generatedPattern != null) ...[
+              const SizedBox(height: 16),
+              _AiPatternInfoCard(pattern: _generatedPattern!),
+            ],
+            const SizedBox(height: 16),
+            _AiGenerateButton(onTap: _openAiSheet),
+            const SizedBox(height: 12),
             GradientButton(label: 'Preview', onTap: _preview, loading: _sending),
           ],
         ),
@@ -340,7 +426,13 @@ class _State extends State<LedDisplayScreen>
           ),
           const SizedBox(height: 22),
           ModeDropdown(mode: _mode, modes: _modes, onPick: _setMode),
-          const SizedBox(height: 28),
+          if (_generatedPattern != null) ...[
+            const SizedBox(height: 16),
+            _AiPatternInfoCard(pattern: _generatedPattern!),
+          ],
+          const SizedBox(height: 16),
+          _AiGenerateButton(onTap: _openAiSheet),
+          const SizedBox(height: 12),
           GradientButton(label: 'Preview', onTap: _preview, loading: _sending),
         ],
       );
@@ -464,17 +556,27 @@ class SegmentedTabs extends StatelessWidget {
 class LedMatrixPreview extends StatelessWidget {
   final String mode;
   final double t, brightness;
+  final List<List<int>>? aiGrid;
+  final Color? aiPrimary, aiSecondary;
   const LedMatrixPreview({
     super.key,
     required this.mode,
     required this.t,
     required this.brightness,
+    this.aiGrid,
+    this.aiPrimary,
+    this.aiSecondary,
   });
 
   List<Color?> _previewMatrix() => List<Color?>.generate(64, (i) {
         final r = i ~/ 8;
-        final c = i % 8;
-        final color = _dot(mode, r, c, t);
+        final c = i  % 8;
+        final Color? color;
+        if (aiGrid != null && aiPrimary != null) {
+          color = _aiDot(aiGrid!, aiPrimary!, aiSecondary ?? aiPrimary!, r, c, t);
+        } else {
+          color = _dot(mode, r, c, t);
+        }
         return color == null
             ? null
             : color.withOpacity((color.opacity * brightness).clamp(0.0, 1.0));
@@ -1078,4 +1180,237 @@ class _HuePaint extends CustomPainter {
   }
   @override
   bool shouldRepaint(_HuePaint o) => o.hue != hue;
+}
+
+// =============================================================================
+//  _AiGenerateButton
+// =============================================================================
+class _AiGenerateButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AiGenerateButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      height: 52,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: _cyan.withOpacity(.45), width: 1.2),
+      ),
+      alignment: Alignment.center,
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(PhosphorIcons.sparkle(), color: _cyan, size: 18),
+        const SizedBox(width: 8),
+        Text('Generate with AI',
+            style: _pp(size: 15, weight: FontWeight.w600, color: _cyan)),
+      ]),
+    ),
+  );
+}
+
+// =============================================================================
+//  _AiPatternInfoCard
+// =============================================================================
+class _AiPatternInfoCard extends StatelessWidget {
+  final GeneratedLedPattern pattern;
+  const _AiPatternInfoCard({required this.pattern});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    decoration: BoxDecoration(
+      color: _cyan.withOpacity(.06),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: _cyan.withOpacity(.2)),
+    ),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(PhosphorIcons.sparkle(), color: _cyan, size: 16),
+      const SizedBox(width: 10),
+      Expanded(child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(pattern.name,
+              style: _pp(size: 13, weight: FontWeight.w600, color: _cyan)),
+          const SizedBox(height: 2),
+          Text(pattern.description,
+              style: _pp(size: 11, color: _muted),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis),
+        ],
+      )),
+    ]),
+  );
+}
+
+// =============================================================================
+//  _AiGenerateSheet
+// =============================================================================
+class _AiGenerateSheet extends StatefulWidget {
+  final ValueChanged<GeneratedLedPattern> onGenerated;
+  const _AiGenerateSheet({required this.onGenerated});
+  @override
+  State<_AiGenerateSheet> createState() => _AiGenerateSheetState();
+}
+
+class _AiGenerateSheetState extends State<_AiGenerateSheet> {
+  final _ctrl = TextEditingController();
+  bool    _loading = false;
+  String? _error;
+
+  static const _examples = [
+    'calm ocean waves',
+    'focused green target',
+    'excited yellow explosion',
+    'purple relaxing spiral',
+    'red chaotic stress flicker',
+  ];
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  Future<void> _generate() async {
+    final prompt = _ctrl.text.trim();
+    if (prompt.isEmpty || _loading) return;
+    setState(() { _loading = true; _error = null; });
+    try {
+      final pattern = await api.generateLedPattern(
+        prompt: prompt,
+        brightness: 80,
+        speed: 60,
+      );
+      if (!mounted) return;
+      widget.onGenerated(pattern);
+      Navigator.pop(context);
+    } catch (_) {
+      if (mounted) setState(() { _loading = false; _error = 'Could not generate pattern.'; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF0C1826),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          // drag handle
+          Container(width: 36, height: 4,
+            decoration: BoxDecoration(
+              color: _muted.withOpacity(.4),
+              borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 20),
+          Text('Generate LED Pattern',
+              style: _pp(size: 17, weight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          // text field
+          Container(
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _border),
+            ),
+            child: TextField(
+              controller: _ctrl,
+              maxLength: 300,
+              maxLines: 3,
+              minLines: 1,
+              style: _pp(size: 14),
+              decoration: InputDecoration(
+                hintText: 'Describe the pattern you want…',
+                hintStyle: _pp(size: 14, color: _muted),
+                border: InputBorder.none,
+                counterText: '',
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 14),
+              ),
+            ),
+          ),
+          // examples
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 32,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _examples.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) => GestureDetector(
+                onTap: () => setState(() => _ctrl.text = _examples[i]),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _cyan.withOpacity(.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: _cyan.withOpacity(.25)),
+                  ),
+                  child: Text(_examples[i],
+                      style: _pp(size: 11, color: _cyan)),
+                ),
+              ),
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Text(_error!,
+                style: _pp(size: 12, color: const Color(0xFFFF4D4D))),
+          ],
+          const SizedBox(height: 24),
+          // buttons
+          Row(children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: _loading ? null : () => Navigator.pop(context),
+                child: Container(
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: _surface,
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: _border),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text('Cancel',
+                      style: _pp(size: 15, color: _muted,
+                          weight: FontWeight.w500)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: GestureDetector(
+                onTap: _generate,
+                child: Container(
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [
+                      Color(0xFF006BFF),
+                      Color(0xFF8A3FFC),
+                      Color(0xFFC13BFF),
+                    ]),
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [BoxShadow(
+                      color: _purple.withOpacity(_loading ? .15 : .40),
+                      blurRadius: 18, offset: const Offset(0, 6))],
+                  ),
+                  alignment: Alignment.center,
+                  child: _loading
+                      ? const SizedBox(width: 20, height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.5, color: Colors.white))
+                      : Text('Generate',
+                          style: _pp(size: 15, weight: FontWeight.bold)),
+                ),
+              ),
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
 }

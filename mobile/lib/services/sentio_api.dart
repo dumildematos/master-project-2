@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'storage_service.dart';
 import 'auth_service.dart' show getAuthToken;
 import '../models/session_led_pattern.dart';
+import '../models/generated_led_pattern.dart';
 
 // ---------------------------------------------------------------------------
 // Models
@@ -274,4 +275,21 @@ Future<Map<String, dynamic>> getAiStatus() async {
   final res = await _api('/ai/status');
   if (res.statusCode != 200) throw Exception('AI status ${res.statusCode}');
   return jsonDecode(res.body) as Map<String, dynamic>;
+}
+
+Future<GeneratedLedPattern> generateLedPattern({
+  required String prompt,
+  required int brightness,
+  required int speed,
+}) async {
+  final res = await _api('/ai/generate-led-pattern', method: 'POST', body: {
+    'prompt':     prompt,
+    'brightness': brightness,
+    'speed':      speed,
+  });
+  if (res.statusCode != 200) {
+    throw Exception('Generate LED pattern failed (${res.statusCode})');
+  }
+  return GeneratedLedPattern.fromJson(
+      jsonDecode(res.body) as Map<String, dynamic>);
 }
