@@ -24,6 +24,7 @@ from database import get_db
 from models.db_models import EmotionLabel, ModelMetadata, User, UserBaseline
 import services.ai_emotion_service as ai_svc
 import services.model_training_service as train_svc
+from services.claude_led_service import claude_led_service
 
 logger = logging.getLogger("sentio.ai")
 router = APIRouter()
@@ -104,6 +105,22 @@ class AiStatusOut(BaseModel):
     global_model_accuracy: Optional[float]
     n_user_labels:    int
     labels_until_train: int
+
+
+class LedPatternIn(BaseModel):
+    prompt:     str = Field(..., min_length=1, max_length=300)
+    brightness: int = Field(default=80, ge=0, le=100)
+    speed:      int = Field(default=60, ge=0, le=100)
+
+class LedPatternOut(BaseModel):
+    name:           str
+    mode:           str
+    brightness:     int
+    speed:          int
+    primaryColor:   str
+    secondaryColor: str
+    grid:           list
+    description:    str
 
 
 # ---------------------------------------------------------------------------
@@ -260,6 +277,20 @@ async def submit_calibration(
         theta_mean = neutral.theta,
         message    = "Calibration saved successfully",
     )
+
+
+@router.post("/ai/generate-led-pattern", response_model=LedPatternOut)
+async def generate_led_pattern(
+    body: LedPatternIn,
+    current_user: User = Depends(get_current_user),
+):
+    """Generate an 8×8 LED pattern from a text prompt using Claude AI."""
+    pattern = claude_led_service.generate_pattern(
+        user_prompt=body.prompt,
+        brightness=body.brightness,
+        speed=body.speed,
+    )
+    return LedPatternOut(**pattern)
 
 
 @router.get("/ai/status", response_model=AiStatusOut)
