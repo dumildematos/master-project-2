@@ -1,12 +1,11 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../models/session_led_pattern.dart';
-import '../providers/ble_provider.dart';
 import '../providers/session_provider.dart';
+import '../services/sentio_api.dart' show sendPatternToDevice;
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const _kBg       = Color(0xFF02080D);
@@ -57,12 +56,7 @@ class _SessionPatternPreviewScreenState
   Future<void> _previewOnHat() async {
     if (_sending) return;
     final pattern = context.read<SessionProvider>().latestPattern;
-    final ble     = context.read<BleProvider>();
 
-    if (!ble.isHatConnected) {
-      _showSnack('SENTIO Hat not connected', isError: true);
-      return;
-    }
     if (pattern == null) {
       _showSnack('No pattern available', isError: true);
       return;
@@ -70,7 +64,7 @@ class _SessionPatternPreviewScreenState
 
     setState(() => _sending = true);
     try {
-      await ble.sendHatPayload(jsonEncode(pattern.toJson()));
+      await sendPatternToDevice(pattern.toJson());
       _showSnack('Pattern sent to hat');
     } catch (e) {
       _showSnack('Failed: $e', isError: true);
