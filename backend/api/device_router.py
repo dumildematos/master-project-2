@@ -1,23 +1,25 @@
 """
 api/device_router.py
 ---------------------
-Lightweight HTTP endpoint consumed by the SENTIO Hat (ESP32 / Arduino).
+Lightweight HTTP endpoints consumed by the SENTIO Hat (Arduino) and Flutter app.
 
-The hat cannot handle WebSocket + JWT auth, so this endpoint is intentionally
-unauthenticated and returns only what the firmware needs:
-  - current emotion + confidence
-  - per-class emotion scores (for blending)
-  - signal quality (0-100)
-  - AI-generated LED colors (primary, secondary, accent)
-  - active flag (false when no session is running)
+All endpoints are intentionally unauthenticated — the Arduino firmware cannot
+handle JWT auth.
 
-Route: GET /api/device/emotion
+Routes:
+  GET  /api/device/emotion  — current emotion state for autonomous hat rendering
+  POST /api/device/pattern  — Flutter pushes a preview pattern for the hat to display
+  GET  /api/device/pattern  — Arduino polls for the latest pushed pattern
 """
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from services.session_manager import session_manager
+
+# In-memory store for the last pattern pushed from the mobile app.
+# The Arduino polls GET /api/device/pattern and renders whatever is here.
+_pending_pattern: Optional[Dict[str, Any]] = None
 
 router = APIRouter()
 
@@ -93,3 +95,52 @@ def get_device_emotion():
         accent_color   = accent_hex,
         pattern_type   = msg.get("user_pattern_override") or msg.get("pattern_type"),
     )
+
+
+# ---------------------------------------------------------------------------
+# Pattern preview endpoints
+# ---------------------------------------------------------------------------
+
+class PatternPayload(BaseModel):
+    mode:       str
+    brightness: int
+    speed:      int
+    colors:     List[str]
+    pattern:    List[List[int]]
+    rgb_grid:   Optional[List[List[str]]] = None   # 8×8 actual hex colors per pixel
+
+
+class PatternOut(BaseModel):
+    available:  bool
+    mode:       Optional[str]
+    brightness: Optional[int]
+    speed:      Optional[int]
+    colors:     Optional[List[str]]
+    pattern:    Optional[List[List[int]]]
+    rgb_grid:   Optional[List[List[str]]] = None
+
+
+@router.post("/device/pattern", status_code=200)
+def push_device_pattern(payload: PatternPayload):
+    """
+    Flutter posts the pattern to preview here.
+    The Arduino polls GET /api/device/pattern and renders it immediately.
+    """
+    global _pending_pattern
+    _pending_pattern = payload.model_dump()
+    return {"ok": True}
+
+
+@router.get("/device/pattern", response_model=PatternOut)
+def get_device_pattern():
+    """
+    Arduino polls this endpoint to get the latest pattern pushed from Flutter.
+    Returns available=false when nothing has been pushed yet.
+    """
+    if _pending_pattern is None:
+        return PatternOut(
+            available=False,
+            mode=None, brightness=None, speed=None,
+            colors=None, pattern=None,
+        )
+    return PatternOut(available=True, **_pending_pattern)

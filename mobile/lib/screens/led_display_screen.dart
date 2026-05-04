@@ -7,16 +7,13 @@
 //  Packages: google_fonts, phosphor_flutter, provider
 // =============================================================================
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:provider/provider.dart';
 import '../models/generated_led_pattern.dart';
 import '../models/led_config.dart';
-import '../providers/ble_provider.dart';
 import '../services/sentio_api.dart' as api;
 
 // ─── Brand tokens ──────────────────────────────────────────────────────────────
@@ -61,8 +58,10 @@ List<Color?> _defaultMatrix() => List.generate(64, (i) {
 Duration _dur(double speed) =>
     Duration(milliseconds: ((1 - speed) * 3500 + 500).round());
 
-// ─── AI grid animation — breathes between primaryColor and secondaryColor ──────
-Color? _aiDot(
+// ─── AI grid + mode animation ─────────────────────────────────────────────────
+// Uses the AI grid for on/off (same 8×8 mask) and the selected mode for colour.
+Color? _dotWithGrid(
+  String mode,
   List<List<int>> grid,
   Color primary,
   Color secondary,
@@ -70,12 +69,53 @@ Color? _aiDot(
   int c,
   double t,
 ) {
-  if (r >= grid.length || c >= grid[r].length) return null;
-  if (grid[r][c] == 0) return null;
-  // Offset phase per cell so they don't all pulse together
-  final phase = (r * 8 + c) / 64.0;
-  final pulse  = math.sin((t + phase * 0.3) * math.pi * 2) * 0.5 + 0.5;
-  return Color.lerp(primary, secondary, pulse);
+  if (r >= grid.length || c >= grid[r].length || grid[r][c] == 0) return null;
+
+  final dx = c - 3.5, dy = r - 3.5;
+  final d  = math.sqrt(dx * dx + dy * dy);
+
+  switch (mode) {
+    case 'Breathing':
+      final pulse = math.sin(t * math.pi * 2) * .5 + .5;
+      return Color.lerp(primary, secondary, pulse);
+
+    case 'Pulse':
+      for (int i = 0; i < 3; i++) {
+        final rp = ((t + i / 3.0) % 1.0) * 4.5;
+        if ((d - rp).abs() < .65) return Color.lerp(primary, secondary, i / 2.0);
+      }
+      return primary.withOpacity(.18);
+
+    case 'Wave':
+      final wave = math.sin(c / 7.0 * math.pi * 2 + t * math.pi * 2) * 2.5 + 3.5;
+      final dd   = (r - wave).abs();
+      if (dd >= .9) return primary.withOpacity(.18);
+      return Color.lerp(primary, secondary, 1 - dd / .9)!
+          .withOpacity((1 - dd / .9).clamp(0.0, 1.0));
+
+    case 'Spectrum':
+      return HSVColor.fromAHSV(
+          1, ((r * 8 + c) / 64 * 300 + t * 360) % 360, 1, .95).toColor();
+
+    case 'Fireworks':
+      final a = ((math.sin(t * math.pi * 2 +
+              ((r * 8 + c) % 16) / 16.0 * math.pi * 2) +
+          1) / 2).clamp(0.0, 1.0);
+      return a < .1 ? primary.withOpacity(.1) : Color.lerp(primary, secondary, a);
+
+    case 'Spiral':
+      final angle   = (math.atan2(dy, dx) + math.pi * 2) % (math.pi * 2);
+      final rotated = (angle - t * math.pi * 2 + math.pi * 100) % (math.pi * 2);
+      var   delta   = (rotated - (d / .55) % (math.pi * 2)).abs();
+      if (delta > math.pi) delta = math.pi * 2 - delta;
+      return delta < .75
+          ? Color.lerp(primary, secondary, (d / 3.8).clamp(0.0, 1.0))
+          : primary.withOpacity(.15);
+
+    default:
+      final pulse = math.sin(t * math.pi * 2 + (r * 8 + c) / 64.0 * math.pi) * .5 + .5;
+      return Color.lerp(primary, secondary, pulse);
+  }
 }
 
 // ─── Dot colour with animation phase t ∈ [0, 1) ──────────────────────────────
@@ -188,37 +228,72 @@ class _State extends State<LedDisplayScreen>
   }
 
   void _setMode(String m) {
-    setState(() => _mode = m);
+    setState(() {
+      _mode = m;
+      _generatedPattern = null; // mode selection overrides any loaded AI pattern
+    });
     _ctrl.reset(); _ctrl.repeat();
+  }
+
+  // Converts a Color to #RRGGBB hex string
+  String _c2hex(Color c) {
+    final v = c.toARGB32();
+    final r = ((v >> 16) & 0xFF).toRadixString(16).padLeft(2, '0').toUpperCase();
+    final g = ((v >>  8) & 0xFF).toRadixString(16).padLeft(2, '0').toUpperCase();
+    final b = (v & 0xFF).toRadixString(16).padLeft(2, '0').toUpperCase();
+    return '#$r$g$b';
+  }
+
+  // Builds the 8×8 rgb_grid matching exactly what the Flutter preview displays.
+  List<List<String>> _buildRgbGrid() {
+    final double t = _ctrl.value;
+    return List.generate(8, (r) => List.generate(8, (c) {
+      Color? color;
+      if (_generatedPattern != null) {
+        color = _dotWithGrid(
+          _mode,
+          _generatedPattern!.grid,
+          _hexColor(_generatedPattern!.primaryColor),
+          _hexColor(_generatedPattern!.secondaryColor),
+          r, c, t,
+        );
+      } else if (_tab == 0) {
+        color = _dot(_mode, r, c, t);
+      } else {
+        color = _matrix[r * 8 + c];
+      }
+      if (color == null || color.a < 0.05) return '#000000';
+      return _c2hex(color);
+    }));
   }
 
   Future<void> _preview() async {
     if (_sending) return;
 
-    final ble = context.read<BleProvider>();
-    if (!ble.isHatConnected) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('No device connected', style: _pp(size: 13)),
-        backgroundColor: const Color(0xFFFF4D4D),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 2),
-      ));
-      return;
-    }
-
     setState(() => _sending = true);
     try {
-      final String payload;
+      final int bri = (_bright * 100).round().clamp(0, 100);
+      final int spd = (_speed  * 100).round().clamp(0, 100);
+      final List<List<String>> rgbGrid = _buildRgbGrid();
+
+      final Map<String, dynamic> payload;
       if (_generatedPattern != null) {
-        payload = jsonEncode(_generatedPattern!.toHatPayload());
+        final p = _generatedPattern!;
+        payload = {
+          'mode':       p.mode,
+          'brightness': bri,
+          'speed':      spd,
+          'colors':     [p.primaryColor, p.secondaryColor],
+          'pattern':    p.grid,
+          'rgb_grid':   rgbGrid,
+        };
       } else {
-        final config = _tab == 0
+        final base = _tab == 0
             ? LedConfig.fromEffects(mode: _mode, brightness: _bright, speed: _speed)
             : LedConfig.fromCustom(matrix: _matrix, brightness: _bright, speed: _speed, mode: _mode);
-        payload = jsonEncode(config.toJson());
+        payload = {...base.toJson(), 'rgb_grid': rgbGrid};
       }
-      await ble.sendHatPayload(payload);
+      await api.sendPatternToDevice(payload);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -573,7 +648,7 @@ class LedMatrixPreview extends StatelessWidget {
         final c = i  % 8;
         final Color? color;
         if (aiGrid != null && aiPrimary != null) {
-          color = _aiDot(aiGrid!, aiPrimary!, aiSecondary ?? aiPrimary!, r, c, t);
+          color = _dotWithGrid(mode, aiGrid!, aiPrimary!, aiSecondary ?? aiPrimary!, r, c, t);
         } else {
           color = _dot(mode, r, c, t);
         }

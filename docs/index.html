@@ -1196,7 +1196,6 @@
     <li><a href="#stack">STACK</a></li>
     <li><a href="#units">UNITS</a></li>
     <li><a href="#faq">FAQ</a></li>
-    <li><a href="#ai-guidance">AI GUIDE</a></li>
     <li><a href="#team">TEAM</a></li>
   </ul>
   <a href="https://github.com/dumildematos/master-project-2" class="nav-cta" target="_blank" rel="noopener">
@@ -1225,9 +1224,9 @@
   </h1>
 
   <p class="hero-sub">
-    Sentio reads EEG signals from a Muse headband, maps emotional states
-    through AI, and drives a WS2812B LED grid embedded in a garment —
-    turning neuroscience into living, wearable art.
+    Sentio reads EEG signals from a Muse headband, classifies emotional states
+    through an ML pipeline, and drives a SENTIO Hat — an 8×8 WS2812B LED matrix —
+    via a Flutter mobile app over BLE, turning neuroscience into wearable light.
   </p>
 
   <div class="hero-actions">
@@ -1244,11 +1243,11 @@
   <!-- Hero photo — real wearable shot -->
   <div class="hero-visual fade-in" style="margin-top:56px;width:min(680px,92vw)">
     <div style="position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--border);box-shadow:0 40px 80px rgba(0,0,0,0.55)">
-      <img src="images/sentio-wearable.png"
-           alt="Sentio LED t-shirt front and back view — person wearing Muse EEG headband"
+      <img src="images/sentio-banner.png"
+           alt="SENTIO Hat — 8×8 WS2812B LED matrix driven by Flutter mobile app via BLE"
            style="width:100%;display:block;border-radius:16px;">
       <div class="mock-live" style="position:absolute;top:14px;right:14px">
-        <div class="mock-live-dot"></div>LIVE · 300 LEDs
+        <div class="mock-live-dot"></div>LIVE · 8×8 HAT
       </div>
       <div class="mock-emotion-tag" id="emotion-tag"
            style="position:absolute;bottom:14px;left:14px">● CALM</div>
@@ -1267,33 +1266,24 @@
     <div class="stat-label">EEG Sample Rate</div>
   </div>
   <div class="stat-item fade-in" style="transition-delay:0.2s">
-    <div class="stat-value" style="color:var(--magenta)">300</div>
-    <div class="stat-label">WS2812B LEDs</div>
+    <div class="stat-value" style="color:var(--magenta)">8×8</div>
+    <div class="stat-label">SENTIO Hat LED Grid</div>
   </div>
   <div class="stat-item fade-in" style="transition-delay:0.3s">
-    <div class="stat-value" style="color:var(--amber)">&lt; 50ms</div>
-    <div class="stat-label">End-to-End Latency</div>
+    <div class="stat-value" style="color:var(--amber)">7</div>
+    <div class="stat-label">Animation Modes</div>
   </div>
 </div>
 
 <!-- ── Wearable photo showcase ── -->
 <div class="photo-showcase" id="showcase">
-  <div class="photo-duo">
-    <div class="photo-duo-item">
-      <img src="images/sentio-wearable-front.png"
-           alt="Sentio LED t-shirt — front view with Muse EEG headband">
-      <div class="photo-label">FRONT &amp; BACK · MUSE 2 HEADBAND</div>
-      <div class="photo-badge">
-        <span class="photo-badge-dot"></span>300 LEDs · WS2812B
-      </div>
+  <div class="photo-duo-item" style="max-width:680px;margin:0 auto">
+    <img src="images/sentio-wearable-banner.png"
+         alt="SENTIO Hat — front view with Muse EEG headband">
+    <div class="photo-label">SENTIO HAT · MUSE 2 HEADBAND</div>
+    <div class="photo-badge">
+      <span class="photo-badge-dot"></span>8×8 Matrix · WS2812B
     </div>
-    <div class="photo-duo-item">
-      <img src="images/sentio-wearable-back.png"
-           alt="Sentio LED t-shirt — back view"
-           style="object-position: center top; transform: scaleX(-1);">
-      <div class="photo-label">BTF-LIGHTING 5 m · 60 LEDs/m</div>
-    </div>
-    <div class="photo-duo-divider"></div>
   </div>
 </div>
 
@@ -1321,23 +1311,23 @@
     <div class="pipe-step">
       <div class="pipe-num">03</div>
       <div class="pipe-icon" style="background:hsl(38 92% 58% / 0.1); border:1px solid hsl(38 92% 58% / 0.3)">🤖</div>
-      <div class="pipe-name">Emotion Mapping</div>
-      <div class="pipe-desc">Rule-based emotion engine classifies each window into calm, focused, stressed, relaxed, or excited.</div>
-      <span class="pipe-tag" style="background:hsl(38 92% 58%/0.08);border:1px solid hsl(38 92% 58%/0.3);color:var(--amber)">Rule-based AI</span>
+      <div class="pipe-name">Emotion Classification</div>
+      <div class="pipe-desc">An ML classifier (scikit-learn) and rule-based engine detect one of five states — calm, focused, stressed, relaxed, or excited — with confidence scoring and temporal smoothing.</div>
+      <span class="pipe-tag" style="background:hsl(38 92% 58%/0.08);border:1px solid hsl(38 92% 58%/0.3);color:var(--amber)">ML · scikit-learn</span>
     </div>
     <div class="pipe-step">
       <div class="pipe-num">04</div>
       <div class="pipe-icon" style="background:hsl(310 70% 62% / 0.1); border:1px solid hsl(310 70% 62% / 0.3)">🎨</div>
-      <div class="pipe-name">Pattern Generation</div>
-      <div class="pipe-desc">Backend maps emotion + band powers to a colour palette, pattern seed, and complexity value broadcast over WebSocket.</div>
-      <span class="pipe-tag" style="background:hsl(310 70% 62%/0.08);border:1px solid hsl(310 70% 62%/0.3);color:var(--magenta)">FastAPI · WebSocket</span>
+      <div class="pipe-name">AI Pattern Generation</div>
+      <div class="pipe-desc">Claude AI generates an 8×8 LED pattern — colour palette, animation mode, and grid — from the detected emotion. The Flutter mobile app fetches it via REST and previews it live.</div>
+      <span class="pipe-tag" style="background:hsl(310 70% 62%/0.08);border:1px solid hsl(310 70% 62%/0.3);color:var(--magenta)">Claude AI · Flutter</span>
     </div>
     <div class="pipe-step">
       <div class="pipe-num">05</div>
       <div class="pipe-icon" style="background:hsl(187 80% 55% / 0.1); border:1px solid hsl(187 80% 55% / 0.3)">💡</div>
-      <div class="pipe-name">LED Display</div>
-      <div class="pipe-desc">ESP32 receives the stream and renders fluid, geometric, or pulse patterns on a WS2812B 8×8 LED grid sewn into the garment.</div>
-      <span class="pipe-tag" style="background:hsl(187 80% 55%/0.08);border:1px solid hsl(187 80% 55%/0.3);color:var(--cyan)">Arduino · FastLED</span>
+      <div class="pipe-name">SENTIO Hat Display</div>
+      <div class="pipe-desc">Flutter pushes the pattern payload over BLE to the SENTIO Hat. The Arduino renders one of seven animation modes (breathing, pulse, wave, flicker, burst, spiral, static) on the 8×8 WS2812B matrix.</div>
+      <span class="pipe-tag" style="background:hsl(187 80% 55%/0.08);border:1px solid hsl(187 80% 55%/0.3);color:var(--cyan)">BLE · FastLED · 8×8</span>
     </div>
   </div>
 </section>
@@ -1364,28 +1354,28 @@
       <div class="feat-stack"><span class="tag">Python</span><span class="tag">NumPy</span><span class="tag">FastAPI</span></div>
     </div>
     <div class="feat-card fade-in" style="transition-delay:0.16s">
-      <div class="feat-icon" style="background:hsl(38 92% 58%/0.1);border:1px solid hsl(38 92% 58%/0.2)">💡</div>
-      <div class="feat-title">React monitoring dashboard</div>
-      <div class="feat-desc">Live WebSocket dashboard with band-power charts, emotion orb, design params, and a Manual Override mode for demos.</div>
-      <div class="feat-stack"><span class="tag">React 18</span><span class="tag">Vite</span><span class="tag">Framer Motion</span></div>
+      <div class="feat-icon" style="background:hsl(38 92% 58%/0.1);border:1px solid hsl(38 92% 58%/0.2)">📱</div>
+      <div class="feat-title">Flutter mobile app</div>
+      <div class="feat-desc">Cross-platform mobile app with session management, live emotion display, BLE hat control, dashboard analytics, session history, and AI-powered LED pattern preview — all in one interface.</div>
+      <div class="feat-stack"><span class="tag">Flutter</span><span class="tag">Dart</span><span class="tag">Provider</span></div>
     </div>
     <div class="feat-card fade-in" style="transition-delay:0.08s">
-      <div class="feat-icon" style="background:hsl(310 70% 62%/0.1);border:1px solid hsl(310 70% 62%/0.2)">🎮</div>
-      <div class="feat-title">Manual override mode</div>
-      <div class="feat-desc">Slide band values and pick emotion presets via the frontend. Values are injected into the WebSocket stream and the Arduino updates its LED pattern instantly — no headset needed for demos.</div>
-      <div class="feat-stack"><span class="tag">REST API</span><span class="tag">WebSocket</span></div>
+      <div class="feat-icon" style="background:hsl(310 70% 62%/0.1);border:1px solid hsl(310 70% 62%/0.2)">✨</div>
+      <div class="feat-title">AI LED pattern generation</div>
+      <div class="feat-desc">Claude AI generates a unique 8×8 LED pattern from a free-text prompt — including colour palette, animation mode, and pixel grid. Falls back to emotion-matched presets when offline.</div>
+      <div class="feat-stack"><span class="tag">Claude AI</span><span class="tag">Anthropic</span><span class="tag">REST API</span></div>
     </div>
     <div class="feat-card fade-in" style="transition-delay:0.16s">
-      <div class="feat-icon" style="background:hsl(187 80% 55%/0.1);border:1px solid hsl(187 80% 55%/0.2)">💡</div>
-      <div class="feat-title">300-LED wearable patterns</div>
-      <div class="feat-desc">BTF-LIGHTING WS2812B strip (5 m · 60/m) sewn in serpentine rows inside a black t-shirt. Four animations: Fluid Waves, Geometric Rings, Rhythmic Pulse, Star Field. Brightness scales with live signal quality.</div>
-      <div class="feat-stack"><span class="tag">FastLED</span><span class="tag">ESP32</span><span class="tag">WS2812B 300px</span></div>
+      <div class="feat-icon" style="background:hsl(187 80% 55%/0.1);border:1px solid hsl(187 80% 55%/0.2)">🎩</div>
+      <div class="feat-title">SENTIO Hat — 8×8 LED matrix</div>
+      <div class="feat-desc">Arduino-powered SENTIO Hat with 64 WS2812B LEDs arranged in an 8×8 grid. Seven animation modes — breathing, pulse, wave, flicker, burst, spiral, static — controlled wirelessly from Flutter via BLE.</div>
+      <div class="feat-stack"><span class="tag">FastLED</span><span class="tag">BLE</span><span class="tag">WS2812B 64px</span></div>
     </div>
     <div class="feat-card fade-in" style="transition-delay:0.24s">
-      <div class="feat-icon" style="background:hsl(142 70% 55%/0.1);border:1px solid hsl(142 70% 55%/0.2)">🔌</div>
-      <div class="feat-title">Disconnect detection</div>
-      <div class="feat-desc">Both the frontend and TD mockup detect signal dropout in real time and surface an actionable reconnect modal with a recovery countdown.</div>
-      <div class="feat-stack"><span class="tag">WebSocket</span><span class="tag">Signal Quality</span></div>
+      <div class="feat-icon" style="background:hsl(142 70% 55%/0.1);border:1px solid hsl(142 70% 55%/0.2)">📊</div>
+      <div class="feat-title">Session history &amp; analytics</div>
+      <div class="feat-desc">Full session lifecycle management — start, record, stop, and replay. Dashboard shows emotion distribution, session duration, band-power trends, and per-session timeline stored in SQLite.</div>
+      <div class="feat-stack"><span class="tag">SQLAlchemy</span><span class="tag">FastAPI</span><span class="tag">Flutter Charts</span></div>
     </div>
   </div>
 </section>
@@ -1447,60 +1437,60 @@
 
 <!-- ── Wearable LED ── -->
 <section id="projection">
-  <div class="section-tag">Physical Setup</div>
-  <h2 class="section-title fade-in">Sewn into a<br><span style="color:var(--magenta)">wearable garment</span></h2>
+  <div class="section-tag">Physical Hardware</div>
+  <h2 class="section-title fade-in">SENTIO Hat —<br><span style="color:var(--magenta)">8×8 LED matrix</span></h2>
 
   <div class="projection-split">
     <div>
       <p style="font-size:15px;color:var(--muted);line-height:1.75;margin-bottom:28px;" class="fade-in">
-        A BTF-LIGHTING WS2812B strip (5 m · 60 LEDs/m = 300 LEDs) is sewn in
-        serpentine rows inside a black t-shirt.  The LEDs face outward toward the
-        fabric, diffusing through the weave so each emotion paints the entire
-        garment in a distinct colour field.  The ESP32 sits in a small waist pouch
-        and connects wirelessly to the Sentio backend via WebSocket.
+        The SENTIO Hat packs 64 WS2812B LEDs into an 8×8 matrix controlled by an
+        Arduino over BLE. The Flutter mobile app sends a JSON pattern payload
+        directly to the hat — no WiFi network required. Seven animation modes
+        (breathing, pulse, wave, flicker, burst, spiral, static) are rendered in
+        real time by FastLED, with brightness driven by emotion confidence.
       </p>
       <ul class="proj-checklist fade-in">
-        <li><strong>BTF-LIGHTING WS2812B 5 m · 60 LEDs/m</strong> <span>— 300 individually addressable RGB LEDs, sewn in 12 serpentine rows</span></li>
-        <li><strong>Black t-shirt lining</strong> <span>— LEDs face outward; dark fabric diffuses each pixel into a soft glow</span></li>
-        <li><strong>ESP32 in a waist pouch</strong> <span>— WiFi + WebSocket client; one data wire to strip DIN</span></li>
-        <li><strong>USB power bank ≥ 10 000 mAh</strong> <span>— 5 V / 3 A output; 2–3 h runtime at brightness 60 (~3.2 A draw)</span></li>
-        <li><strong>330 Ω data resistor + 470 µF cap</strong> <span>— prevents ringing on DIN; stabilises the 5 V rail</span></li>
-        <li><strong>Shared WiFi / phone hotspot</strong> <span>— ESP32 and backend laptop on the same network</span></li>
+        <li><strong>WS2812B 8×8 LED matrix</strong> <span>— 64 individually addressable RGB LEDs with per-pixel glow and glow filter</span></li>
+        <li><strong>Arduino BLE module</strong> <span>— receives JSON pattern payloads from Flutter via Bluetooth Low Energy</span></li>
+        <li><strong>FastLED firmware</strong> <span>— seven animation modes rendered at 30 fps; brightness scales with confidence score</span></li>
+        <li><strong>Flutter mobile app</strong> <span>— sends patterns, controls session, previews the 8×8 grid on-screen before transmitting</span></li>
+        <li><strong>FastAPI backend</strong> <span>— REST endpoints for session lifecycle, AI pattern generation, and emotion history</span></li>
+        <li><strong>330 Ω data resistor + 470 µF cap</strong> <span>— protects DIN line; stabilises the 5 V power rail</span></li>
       </ul>
     </div>
 
     <div class="fade-in" style="position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--border);box-shadow:0 24px 60px rgba(0,0,0,0.4)">
-      <img src="images/sentio-wearable.png"
-           alt="Sentio LED t-shirt — wearable with Muse EEG headband"
+      <img src="images/sentio-usecase.jpeg"
+           alt="SENTIO Hat — 8×8 LED matrix worn as a hat, controlled via BLE from Flutter"
            style="width:100%;display:block;border-radius:16px;">
       <div style="position:absolute;inset:0;background:linear-gradient(transparent 55%,hsl(230 25% 5%/0.7));border-radius:16px;pointer-events:none"></div>
       <div style="position:absolute;bottom:18px;left:18px;right:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <span style="font-family:var(--mono);font-size:9px;letter-spacing:2px;color:hsl(220 20% 75%)">BTF-LIGHTING WS2812B · 5 m · 60 LEDs/m</span>
-        <span style="font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--cyan)">300 LEDS</span>
+        <span style="font-family:var(--mono);font-size:9px;letter-spacing:2px;color:hsl(220 20% 75%)">WS2812B 8×8 · Arduino BLE · FastLED</span>
+        <span style="font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--cyan)">64 LEDS</span>
       </div>
     </div>
   </div>
 
-  <!-- Animated LED strip visualiser -->
+  <!-- Animated LED grid visualiser -->
   <div style="margin-top:48px">
     <div style="font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:16px">
-      Live strip simulation — 25 × 12 · 300 LEDs
+      Live grid simulation — 8 × 8 · 64 LEDs · SENTIO Hat
     </div>
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px;overflow:hidden">
-      <svg viewBox="0 0 460 226" fill="none" xmlns="http://www.w3.org/2000/svg" id="led-svg"
-           style="width:100%;display:block">
+      <svg viewBox="0 0 460 476" fill="none" xmlns="http://www.w3.org/2000/svg" id="led-svg"
+           style="width:100%;max-width:460px;margin:0 auto;display:block">
         <defs>
           <filter id="led-glow">
-            <feGaussianBlur stdDeviation="2.5" result="blur"/>
+            <feGaussianBlur stdDeviation="3.5" result="blur"/>
             <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
         </defs>
-        <rect x="2" y="2" width="456" height="208" rx="10"
+        <rect x="2" y="2" width="456" height="456" rx="10"
           fill="hsl(230 25% 5%)" stroke="hsl(230 20% 18%)" stroke-width="1"/>
         <g id="led-cells"></g>
-        <text x="230" y="222" text-anchor="middle"
+        <text x="230" y="472" text-anchor="middle"
           font-family="IBM Plex Mono, monospace" font-size="8" letter-spacing="2"
-          fill="hsl(230 15% 32%)">BTF-LIGHTING WS2812B · 25 × 12 · 300 LEDs · 5 m · 60/m · DC 5V</text>
+          fill="hsl(230 15% 32%)">WS2812B 8×8 · 64 LEDs · SENTIO Hat · BLE · FastLED</text>
       </svg>
     </div>
   </div>
@@ -1517,31 +1507,31 @@
   <div class="stack-grid">
     <div class="stack-card fade-in">
       <div class="stack-icon" style="background:hsl(187 80% 55%/0.1);border:1px solid hsl(187 80% 55%/0.2)">🐍</div>
-      <div><div class="stack-name">FastAPI</div><div class="stack-role">EEG processing · REST · WebSocket</div></div>
+      <div><div class="stack-name">FastAPI</div><div class="stack-role">EEG processing · REST · session lifecycle</div></div>
     </div>
     <div class="stack-card fade-in" style="transition-delay:0.06s">
-      <div class="stack-icon" style="background:hsl(262 70% 65%/0.1);border:1px solid hsl(262 70% 65%/0.2)">⚛️</div>
-      <div><div class="stack-name">React 18 + Vite</div><div class="stack-role">Monitoring dashboard · TypeScript</div></div>
+      <div class="stack-icon" style="background:hsl(262 70% 65%/0.1);border:1px solid hsl(262 70% 65%/0.2)">📱</div>
+      <div><div class="stack-name">Flutter · Dart</div><div class="stack-role">Mobile app · BLE control · session UI</div></div>
     </div>
     <div class="stack-card fade-in" style="transition-delay:0.12s">
-      <div class="stack-icon" style="background:hsl(38 92% 58%/0.1);border:1px solid hsl(38 92% 58%/0.2)">🔌</div>
-      <div><div class="stack-name">Arduino ESP32</div><div class="stack-role">WiFi + WebSocket · WS2812B driver</div></div>
+      <div class="stack-icon" style="background:hsl(38 92% 58%/0.1);border:1px solid hsl(38 92% 58%/0.2)">🎩</div>
+      <div><div class="stack-name">Arduino + BLE</div><div class="stack-role">SENTIO Hat firmware · WS2812B driver</div></div>
     </div>
     <div class="stack-card fade-in" style="transition-delay:0.18s">
       <div class="stack-icon" style="background:hsl(310 70% 62%/0.1);border:1px solid hsl(310 70% 62%/0.2)">🧠</div>
       <div><div class="stack-name">BrainFlow</div><div class="stack-role">Muse 2 EEG acquisition · band power</div></div>
     </div>
     <div class="stack-card fade-in" style="transition-delay:0.24s">
-      <div class="stack-icon" style="background:hsl(187 80% 55%/0.1);border:1px solid hsl(187 80% 55%/0.2)">💡</div>
-      <div><div class="stack-name">FastLED</div><div class="stack-role">WS2812B animations · colour palettes</div></div>
+      <div class="stack-icon" style="background:hsl(187 80% 55%/0.1);border:1px solid hsl(187 80% 55%/0.2)">✨</div>
+      <div><div class="stack-name">Anthropic Claude</div><div class="stack-role">AI LED pattern generation · guidance text</div></div>
     </div>
     <div class="stack-card fade-in" style="transition-delay:0.30s">
       <div class="stack-icon" style="background:hsl(262 70% 65%/0.1);border:1px solid hsl(262 70% 65%/0.2)">🔗</div>
       <div><div class="stack-name">LSL · BlueMuse</div><div class="stack-role">Bluetooth EEG stream to backend</div></div>
     </div>
     <div class="stack-card fade-in" style="transition-delay:0.36s">
-      <div class="stack-icon" style="background:hsl(38 92% 58%/0.1);border:1px solid hsl(38 92% 58%/0.2)">💅</div>
-      <div><div class="stack-name">Tailwind + shadcn/ui</div><div class="stack-role">Dashboard styling · component library</div></div>
+      <div class="stack-icon" style="background:hsl(38 92% 58%/0.1);border:1px solid hsl(38 92% 58%/0.2)">🗃️</div>
+      <div><div class="stack-name">SQLAlchemy · SQLite</div><div class="stack-role">Session storage · emotion history · stats</div></div>
     </div>
     <div class="stack-card fade-in" style="transition-delay:0.42s">
       <div class="stack-icon" style="background:hsl(142 70% 55%/0.1);border:1px solid hsl(142 70% 55%/0.2)">🐙</div>
@@ -1676,9 +1666,9 @@
       <div class="unit-right">
         <div class="unit-applied-label">Applied in Sentio</div>
         <div class="unit-applied-points">
-          <div class="unit-point">The <strong>React monitoring dashboard</strong> surfaces live EEG bands, emotion confidence, and signal quality through animated, colour-coded components.</div>
-          <div class="unit-point"><strong>Manual Override mode</strong> lets users inject emotion presets via sliders — giving full interactive control without a headset.</div>
-          <div class="unit-point">The <strong>disconnect modal</strong> and uncertainty states follow inclusive design principles — never leaving the user without clear system feedback.</div>
+          <div class="unit-point">The <strong>Flutter mobile app</strong> surfaces live emotion state, band-power readings, session stats, and an 8×8 LED grid preview through animated, colour-coded screens.</div>
+          <div class="unit-point"><strong>Manual Override mode</strong> lets users inject emotion presets from the app — giving full interactive control without a headset, ideal for demos.</div>
+          <div class="unit-point">The <strong>BLE connection indicator</strong> and session state machine follow inclusive design principles — every system state is surfaced with clear visual and textual feedback.</div>
         </div>
       </div>
     </div>
@@ -1699,9 +1689,9 @@
       <div class="unit-right">
         <div class="unit-applied-label">Applied in Sentio</div>
         <div class="unit-applied-points">
-          <div class="unit-point">The <strong>pattern mapper</strong> generates unique LED animations per frame — colour palette, complexity, and seed all driven by live EEG values, never repeating the same output.</div>
-          <div class="unit-point">Four generative modes — <strong>Fluid Waves, Geometric Rings, Rhythmic Pulse, Star Field</strong> — each procedurally shaped by band power in real time.</div>
-          <div class="unit-point">On every streamed frame the system produces an <strong>AI guidance sentence</strong> via Claude claude-haiku-4-5 — a short natural-language message that reflects the detected emotion and tells the wearer what the garment is doing and why (e.g. <em>"Your calm mind breathes in slow indigo tides across the fabric."</em>). This closes the generative loop: the AI does not only drive the light output, it narrates its own decisions back to the human in real time. <a href="#ai-guidance" style="color:hsl(310,70%,72%);white-space:nowrap">Learn how →</a></div>
+          <div class="unit-point"><strong>Claude AI generates a novel 8×8 LED pattern</strong> from a free-text prompt — producing colour palette, animation mode, and pixel grid values that have never existed before, driven by the detected emotion.</div>
+          <div class="unit-point">Seven generative animation modes — <strong>breathing, pulse, wave, flicker, burst, spiral, static</strong> — each procedurally rendered on the SENTIO Hat by FastLED in real time.</div>
+          <div class="unit-point">Claude AI generates a unique <strong>8×8 LED pattern</strong> for each emotion — colour, mode, and pixel grid — sent from the Flutter app directly to the SENTIO Hat over BLE, making every session visually distinct.</div>
         </div>
       </div>
     </div>
@@ -1722,9 +1712,9 @@
       <div class="unit-right">
         <div class="unit-applied-label">Applied in Sentio</div>
         <div class="unit-applied-points">
-          <div class="unit-point">The <strong>Muse 2 EEG headband</strong> and <strong>BrainFlow SDK</strong> represent consumer-grade BCI hardware brought into a creative wearable context.</div>
-          <div class="unit-point">A <strong>WS2812B LED strip sewn into a garment</strong> demonstrates edge IoT — an ESP32 acting as a low-latency WebSocket client driving 300 physical pixels.</div>
-          <div class="unit-point">The full stack — BCI → FastAPI → WebSocket → Arduino → fabric — embodies the <strong>physical-digital convergence</strong> that defines emerging technology practice.</div>
+          <div class="unit-point">The <strong>Muse 2 EEG headband</strong> and <strong>BrainFlow SDK</strong> represent consumer-grade BCI hardware brought into a creative wearable context — signal acquisition at the bleeding edge of accessibility.</div>
+          <div class="unit-point">The <strong>SENTIO Hat</strong> — an 8×8 WS2812B matrix controlled by Arduino over BLE — demonstrates edge IoT: a physical device updated wirelessly from a mobile app with sub-100 ms latency.</div>
+          <div class="unit-point">The full stack — BCI → FastAPI → Claude AI → Flutter → BLE → SENTIO Hat — embodies the <strong>physical-digital-AI convergence</strong> that defines emerging technology practice.</div>
         </div>
       </div>
     </div>
@@ -1784,21 +1774,21 @@
 
     <div class="faq-item">
       <button class="faq-question" onclick="toggleFaq(this)">
-        How many LEDs does the garment use and how are they powered?
+        How many LEDs does the SENTIO Hat have and how is it powered?
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div class="faq-answer">
-        The garment uses a <strong>BTF-LIGHTING WS2812B strip — 5 m at 60 LEDs/m = 300 individually addressable RGB LEDs</strong>, sewn in 12 serpentine rows. Power comes from a <strong>USB power bank (≥ 10 000 mAh, 5 V / 3 A)</strong> worn in a small waist pouch alongside the ESP32. Runtime is approximately 2–3 hours at brightness level 60.
+        The SENTIO Hat uses a <strong>WS2812B 8×8 LED matrix — 64 individually addressable RGB LEDs</strong> driven by an Arduino over BLE. It is powered by a USB battery bank or direct 5 V supply. The Flutter mobile app connects via Bluetooth Low Energy — no WiFi or shared network required.
       </div>
     </div>
 
     <div class="faq-item">
       <button class="faq-question" onclick="toggleFaq(this)">
-        Can I use the Manual Override mode without EEG hardware?
+        Can I use the app without EEG hardware?
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div class="faq-answer">
-        Yes — Manual Override is designed exactly for this. From the frontend dashboard you can <strong>select any emotion preset or drag individual band sliders</strong>. The values are injected directly into the WebSocket stream, so the Arduino updates its LED pattern instantly. This is the recommended mode for gallery demos and exhibitions where headset comfort is impractical.
+        Yes — set <code>device_source: simulator</code> in the session config and the backend generates realistic band-power data. The Flutter app can also trigger <strong>Manual Override</strong> — selecting any emotion preset — which sends a predefined pattern directly to the hat over BLE. This is the recommended mode for gallery demos and exhibitions.
       </div>
     </div>
 
@@ -1808,7 +1798,7 @@
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div class="faq-answer">
-        Yes. The full repository — backend (FastAPI + Python), frontend (React + TypeScript), and Arduino firmware (ESP32 + FastLED) — is publicly available on GitHub under an open licence. See <a href="https://github.com/dumildematos/master-project-2" style="color:var(--cyan)">dumildematos/master-project-2</a>.
+        Yes. The full repository — backend (FastAPI + Python), Flutter mobile app (Dart), and Arduino firmware (FastLED + BLE) — is publicly available on GitHub under an open licence. See <a href="https://github.com/dumildematos/master-project-2" style="color:var(--cyan)">dumildematos/master-project-2</a>.
       </div>
     </div>
 
@@ -1817,145 +1807,17 @@
 
 <div class="full-divider"></div>
 
-<!-- ── AI Guidance ── -->
-<section id="ai-guidance">
-  <div class="section-tag">Claude AI · claude-haiku-4-5</div>
-  <h2 class="section-title fade-in">AI Guidance<br><span style="color:hsl(310,70%,72%)">in real time</span></h2>
-  <p class="section-sub fade-in">On every EEG frame Sentio generates a personalised one-sentence message for the wearer — describing their detected brain state and poetically narrating what the garment light is doing right now. It is the system speaking back to the human.</p>
-
-  <div class="aig-hero fade-in">
-
-    <!-- Left: how it works steps -->
-    <div>
-      <div class="aig-how-title">How it works</div>
-      <div class="aig-steps">
-        <div class="aig-step">
-          <div class="aig-step-num">1</div>
-          <div class="aig-step-text">The backend reads a 50 ms EEG window from the Muse 2 headband and extracts <strong>alpha, beta, theta, gamma, delta</strong> band powers, plus the detected emotion and confidence score.</div>
-        </div>
-        <div class="aig-step">
-          <div class="aig-step-num">2</div>
-          <div class="aig-step-text">A structured prompt is assembled with the live brain-state metrics and sent to <strong>Claude claude-haiku-4-5</strong> via the Anthropic API — requesting exactly one sentence using light and nature metaphors.</div>
-        </div>
-        <div class="aig-step">
-          <div class="aig-step-num">3</div>
-          <div class="aig-step-text">The call runs in a <strong>background daemon thread</strong> — it never blocks the 20 fps stream loop. The result is cached per <em>(emotion, confidence bucket)</em> with a 20-second TTL so the same state does not re-query Claude on every frame.</div>
-        </div>
-        <div class="aig-step">
-          <div class="aig-step-num">4</div>
-          <div class="aig-step-text">The guidance sentence is embedded as an <strong><code>ai_guidance</code> field in every WebSocket frame</strong> sent to the frontend. React renders it live in the dashboard overlay — updated automatically as the brain state changes.</div>
-        </div>
-        <div class="aig-step">
-          <div class="aig-step-num">5</div>
-          <div class="aig-step-text">When no API key is configured the system <strong>falls back silently</strong> to static emotion-preset copy — no errors, no broken UI, the feature is simply opt-in.</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Right: example outputs terminal -->
-    <div class="aig-terminal">
-      <div class="aig-terminal-bar">
-        <div class="aig-dot" style="background:#ff5f57"></div>
-        <div class="aig-dot" style="background:#ffbd2e"></div>
-        <div class="aig-dot" style="background:#28c840"></div>
-        <span class="aig-terminal-label">LIVE GUIDANCE OUTPUT</span>
-      </div>
-      <div class="aig-messages">
-        <div class="aig-msg calm">
-          <div class="aig-msg-emotion">😌 Calm · 81% confidence</div>
-          Your serene calm breathes in slow indigo tides that drift across the fabric like deep ocean swells
-        </div>
-        <div class="aig-msg focused">
-          <div class="aig-msg-emotion">🎯 Focused · 76% confidence</div>
-          Your sharp focus burns as golden threads weaving faster through the weave, tracing every clear thought
-        </div>
-        <div class="aig-msg creative">
-          <div class="aig-msg-emotion">🌀 Creative · 68% confidence</div>
-          Your imaginative mind swirls violet sparks into blooming arcs that pulse with each new idea
-        </div>
-        <div class="aig-msg excited">
-          <div class="aig-msg-emotion">⚡ Excited · 79% confidence</div>
-          Your bright excitement sends rose-pink bursts rippling outward in rapid constellation flares
-        </div>
-      </div>
-    </div>
-
-  </div><!-- /aig-hero -->
-
-  <!-- Unit connections -->
-  <div class="aig-units fade-in">
-    <div class="aig-units-title">How it connects to the semester units</div>
-    <div class="aig-unit-grid">
-
-      <div class="aig-unit-card" style="border-color:hsl(310 70% 62% / 0.35)">
-        <div class="aig-unit-icon">✨</div>
-        <div class="aig-unit-badge" style="background:hsl(310 70% 62%/0.12);border:1px solid hsl(310 70% 62%/0.3);color:hsl(310,70%,72%)">PRIMARY</div>
-        <div class="aig-unit-name" style="color:hsl(310,70%,72%)">Generative AI</div>
-        <div class="aig-unit-role">The entire guidance pipeline is an applied generative AI system — a live prompt is constructed from numeric sensor data and a language model synthesises a novel creative sentence that has never existed before.</div>
-      </div>
-
-      <div class="aig-unit-card" style="border-color:hsl(187 80% 55% / 0.35)">
-        <div class="aig-unit-icon">🧠</div>
-        <div class="aig-unit-badge" style="background:hsl(187 80% 55%/0.12);border:1px solid hsl(187 80% 55%/0.3);color:hsl(187,80%,65%)">INFERENCE</div>
-        <div class="aig-unit-name" style="color:hsl(187,80%,65%)">Applied Deep Learning</div>
-        <div class="aig-unit-role">The emotion label and band-power values fed into the prompt are produced by real-time neural inference on raw EEG — the AI guidance is only as meaningful as the deep learning pipeline beneath it.</div>
-      </div>
-
-      <div class="aig-unit-card" style="border-color:hsl(262 70% 65% / 0.35)">
-        <div class="aig-unit-icon">🎨</div>
-        <div class="aig-unit-badge" style="background:hsl(262 70% 65%/0.12);border:1px solid hsl(262 70% 65%/0.3);color:hsl(262,70%,78%)">FEEDBACK</div>
-        <div class="aig-unit-name" style="color:hsl(262,70%,78%)">Interface &amp; Interaction Design</div>
-        <div class="aig-unit-role">The guidance text is the final leg of the feedback loop — the system reads the brain, drives the garment, and then tells the wearer what it is doing and why, making the invisible legible.</div>
-      </div>
-
-      <div class="aig-unit-card" style="border-color:hsl(38 92% 58% / 0.35)">
-        <div class="aig-unit-icon">⚡</div>
-        <div class="aig-unit-badge" style="background:hsl(38 92% 58%/0.12);border:1px solid hsl(38 92% 58%/0.3);color:hsl(38,92%,65%)">CONVERGENCE</div>
-        <div class="aig-unit-name" style="color:hsl(38,92%,65%)">Emerging Technologies</div>
-        <div class="aig-unit-role">Combining a consumer BCI, edge IoT hardware, and a frontier LLM into a single 50 ms pipeline is exactly the kind of unexpected technology convergence the unit foregrounds as a design space.</div>
-      </div>
-
-    </div>
-  </div><!-- /aig-units -->
-
-  <!-- Why it matters -->
-  <div class="aig-importance fade-in">
-
-    <div class="aig-imp-card">
-      <div class="aig-imp-icon">🔁</div>
-      <div class="aig-imp-title">Closes the human–AI loop</div>
-      <div class="aig-imp-text">Most biosignal systems are one-directional: they sense, they output, they stop. AI guidance adds a return channel — the system explains its own reasoning back to the person wearing it, turning passive output into a conversation.</div>
-    </div>
-
-    <div class="aig-imp-card">
-      <div class="aig-imp-icon">🪄</div>
-      <div class="aig-imp-title">Makes the garment legible</div>
-      <div class="aig-imp-text">LED patterns communicate through colour and movement — but a bystander cannot know what they mean. A guidance sentence makes the garment readable: it grounds the abstract visual output in language anyone can understand.</div>
-    </div>
-
-    <div class="aig-imp-card">
-      <div class="aig-imp-icon">⚙️</div>
-      <div class="aig-imp-title">Zero latency impact</div>
-      <div class="aig-imp-text">Because every Claude call runs in a daemon thread and results are cached, the 20 fps EEG stream is never delayed by an LLM round-trip. The feature costs nothing in latency when the cache is warm, and gracefully degrades to static copy when the key is absent.</div>
-    </div>
-
-  </div><!-- /aig-importance -->
-
-</section>
-
-<div class="full-divider"></div>
-
 <!-- ── CTA ── -->
 <div class="cta-block">
   <h2 class="fade-in">Open source &amp;<br>fully documented</h2>
-  <p class="fade-in">All source code, Arduino setup guide, and backend instructions are available on GitHub.</p>
+  <p class="fade-in">Backend, Flutter mobile app, Arduino firmware, and setup guides — all available on GitHub.</p>
   <div class="cta-actions fade-in">
     <a href="https://github.com/dumildematos/master-project-2" class="btn-github" target="_blank" rel="noopener">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
       dumildematos/master-project-2
     </a>
-    <a href="https://github.com/dumildematos/master-project-2/tree/main/arduino" class="btn-ghost" target="_blank" rel="noopener">
-      Arduino Setup Guide →
+    <a href="https://github.com/dumildematos/master-project-2/tree/main/mobile" class="btn-ghost" target="_blank" rel="noopener">
+      Flutter Mobile App →
     </a>
   </div>
 </div>
@@ -1966,9 +1828,8 @@
   <div class="footer-links">
     <a href="https://github.com/dumildematos/master-project-2" target="_blank" rel="noopener">GitHub</a>
     <a href="https://github.com/dumildematos/master-project-2/tree/main/backend" target="_blank" rel="noopener">Backend</a>
-    <a href="https://github.com/dumildematos/master-project-2/tree/main/frontend" target="_blank" rel="noopener">Frontend</a>
+    <a href="https://github.com/dumildematos/master-project-2/tree/main/mobile" target="_blank" rel="noopener">Mobile</a>
     <a href="https://github.com/dumildematos/master-project-2/tree/main/arduino" target="_blank" rel="noopener">Arduino</a>
-    <a href="#ai-guidance">AI Guide</a>
     <a href="#team">Team</a>
     <a href="https://www.iade.europeia.pt/en/postgraduate-programs/master-creative-computing-artificial-intelligence/" target="_blank" rel="noopener">IADE</a>
   </div>
@@ -2056,16 +1917,16 @@
     requestAnimationFrame(tick);
   })();
 
-  // ── BTF-LIGHTING 25×12 LED strip animation (t-shirt layout) ──
+  // ── SENTIO Hat 8×8 LED matrix animation ──
   (function() {
     const g = document.getElementById('led-cells');
     const svg = document.getElementById('led-svg');
     if (!g || !svg) return;
 
-    // 25 columns × 12 rows = 300 LEDs (full 5 m BTF-LIGHTING strip)
-    const COLS = 25, ROWS = 12;
-    const SVG_W = 460, SVG_H = 210;
-    const PAD_X = 12, PAD_Y = 14;
+    // 8 columns × 8 rows = 64 LEDs (SENTIO Hat WS2812B matrix)
+    const COLS = 8, ROWS = 8;
+    const SVG_W = 460, SVG_H = 460;
+    const PAD_X = 20, PAD_Y = 20;
     const CELL_W = (SVG_W - PAD_X * 2) / COLS;
     const CELL_H = (SVG_H - PAD_Y * 2) / ROWS;
 
@@ -2082,7 +1943,7 @@
     if (label) {
       label.setAttribute('x', SVG_W / 2);
       label.setAttribute('y', SVG_H + 12);
-      label.textContent = 'BTF-LIGHTING WS2812B · 25 × 12 · 300 LEDs · 5 m · 60/m';
+      label.textContent = 'WS2812B 8×8 · 64 LEDs · SENTIO Hat · BLE · FastLED';
     }
 
     const PALETTES = {
@@ -2100,8 +1961,8 @@
       leds[r] = [];
       for (let c = 0; c < COLS; c++) {
         const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
-        // serpentine: odd rows run right-to-left (mirrors actual strip wiring)
-        const col = (r % 2 === 0) ? c : (COLS - 1 - c);
+        // column index (direct — 8×8 hat uses row-major addressing)
+        const col = c;
         const cx = PAD_X + col * CELL_W + CELL_W / 2;
         const cy = PAD_Y + r * CELL_H + CELL_H / 2;
         const radius = Math.min(CELL_W, CELL_H) * 0.38;

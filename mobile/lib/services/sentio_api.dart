@@ -277,6 +277,13 @@ Future<Map<String, dynamic>> getAiStatus() async {
   return jsonDecode(res.body) as Map<String, dynamic>;
 }
 
+Future<void> sendPatternToDevice(Map<String, dynamic> payload) async {
+  final res = await _api('/device/pattern', method: 'POST', body: payload);
+  if (res.statusCode != 200) {
+    throw Exception('Send pattern to device failed (${res.statusCode})');
+  }
+}
+
 Future<GeneratedLedPattern> generateLedPattern({
   required String prompt,
   required int brightness,
