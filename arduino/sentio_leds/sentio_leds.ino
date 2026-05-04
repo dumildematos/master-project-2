@@ -8,8 +8,8 @@
 // CONFIG
 // ======================================================
 
-const char* ssid     = "";
-const char* password = "";
+const char* ssid     = "NETWORK_SSID";
+const char* password = "NETWORK_PASSWORD";
 
 const char* emotionApiUrl = "http://192.168.1.180:8000/api/device/emotion";
 const char* patternApiUrl = "http://192.168.1.180:8000/api/device/pattern";
