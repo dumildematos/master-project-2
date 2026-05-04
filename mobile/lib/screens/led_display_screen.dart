@@ -287,11 +287,17 @@ class _State extends State<LedDisplayScreen>
           'pattern':    p.grid,
           'rgb_grid':   rgbGrid,
         };
-      } else {
-        final base = _tab == 0
-            ? LedConfig.fromEffects(mode: _mode, brightness: _bright, speed: _speed)
-            : LedConfig.fromCustom(matrix: _matrix, brightness: _bright, speed: _speed, mode: _mode);
+      } else if (_tab == 0) {
+        final base = LedConfig.fromEffects(mode: _mode, brightness: _bright, speed: _speed);
         payload = {...base.toJson(), 'rgb_grid': rgbGrid};
+      } else {
+        // Customize tab: force static mode so the painted pattern shows as-is.
+        // Strip pixel_colors — it's redundant with rgb_grid and bloats the
+        // payload past the Arduino's ArduinoJson buffer capacity.
+        final base = LedConfig.fromCustom(
+          matrix: _matrix, brightness: _bright, speed: _speed, mode: 'static');
+        final json = Map<String, dynamic>.from(base.toJson())..remove('pixel_colors');
+        payload = {...json, 'rgb_grid': rgbGrid};
       }
       await api.sendPatternToDevice(payload);
 
